@@ -23,6 +23,8 @@ import HelpCenter from "./pages/HelpCenter";
 import TemplateGallery from "./pages/TemplateGallery";
 import Designer from "./pages/Designer";
 import Studio from "./pages/Studio";
+import ReviewPage from "./pages/ReviewPage";
+import TshirtCatgeoryVariant1 from "./pages/TshirtCatgeoryVariant1";
 
 const App = () => {
   return (
@@ -34,10 +36,10 @@ const App = () => {
         {/* product category pages */}
         <Route path="/products-category" element={<ProductCatgeoryVariant1 />} />
         <Route path="/products-category-2" element={<ProductCatgeoryVariant2 />} />
-
+        <Route path="/tshirt-category" element={<TshirtCatgeoryVariant1 />} />
         {/* product description */}
         <Route path="/products/:category/:slug" element={<Description />} />
-
+         
         {/* user account */}
         <Route path="/account/:tabId?" element={<MyAccount />} />
         <Route path="/account" element={<MyAccount />} />
@@ -59,7 +61,11 @@ const App = () => {
         {/* new: pre-built template gallery and fabric designer */}
         <Route path="/designs" element={<TemplateGallery />} />
         <Route path="/designer/:templateId" element={<Designer />} />
-       
+
+        {/* <Route path="/review" element={<ReviewPage />} /> */}
+
+        {/* <Route path="/design/:templateId" element={<Designer />} /> */}
+  <Route path="/review/:sessionId" element={<ReviewPage />} />
 {/* <Route path="/studio" element={<Studio />} /> */}
 
         {/* optional extras */}

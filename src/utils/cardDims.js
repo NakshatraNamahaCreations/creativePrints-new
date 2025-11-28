@@ -1,16 +1,17 @@
 // logical business-card dimensions & helpers
+export function buildCardPx(opts = {}) {
+  // opts: { dpi = 300, widthMM = 89, heightMM = 51, cornerRadiusMM = 0 }
+  const dpi = opts.dpi ?? 300;
+  const widthMM = opts.widthMM ?? 89;
+  const heightMM = opts.heightMM ?? 51;
+  const cornerRadiusMM = opts.cornerRadiusMM ?? 0;
 
-export function buildCardPx(dpi = 300) {
-  // 89 × 51 mm (+ 3mm bleed each side is common; adjust if you want)
   const mmToPx = (mm) => Math.round((mm / 25.4) * dpi);
-
-  const widthMM = 89;
-  const heightMM = 51;
 
   const w = mmToPx(widthMM);
   const h = mmToPx(heightMM);
+  const cornerRadiusPx = mmToPx(cornerRadiusMM);
 
-  // safe/bleed in base logical space (tweak as needed)
   const bleed = Math.round(mmToPx(3)); // 3mm
   const safePad = Math.round(mmToPx(4)); // 4mm
 
@@ -21,7 +22,15 @@ export function buildCardPx(dpi = 300) {
     h,
     aspect: w / h,
     bleed,
-    safeBox: { x: bleed + safePad, y: bleed + safePad, w: w - (bleed + safePad) * 2, h: h - (bleed + safePad) * 2 },
+    safeBox: {
+      x: bleed + safePad,
+      y: bleed + safePad,
+      w: w - (bleed + safePad) * 2,
+      h: h - (bleed + safePad) * 2,
+    },
+    cornerRadiusMM,
+    cornerRadiusPx,
+    dpi,
   };
 }
 

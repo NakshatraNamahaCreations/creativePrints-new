@@ -11,7 +11,7 @@ import ReviewsSection from "../ui/ReviewsPage";
 import FAQPage from "../ui/FAQPage";
 
 function Description() {
-  const { slug } = useParams();
+ const { category, slug } = useParams();
   const location = useLocation();
 
   // sanitize API base (no trailing slash)
@@ -48,27 +48,45 @@ function Description() {
   };
 
   // fetch hook (also at top level)
-  useEffect(() => {
-    let alive = true;
-    setError("");
-    setProduct(null);
+useEffect(() => {
+  let alive = true;
+  setError("");
+  setProduct(null);
 
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/products/${slug}`);
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body?.error || `HTTP ${res.status}`);
+  (async () => {
+    try {
+      // pick the endpoint depending on category
+      // If your API exposes /api/tshirts/:slug use that.
+      // Otherwise fall back to /api/products/:slug which many backends support.
+      const endpoint =
+        category === "tshirt"
+          ? `${API_BASE}/api/tshirts/${encodeURIComponent(slug)}`
+          : `${API_BASE}/api/products/${encodeURIComponent(slug)}`;
+
+      const res = await fetch(endpoint);
+      if (!res.ok) {
+        // attempt a fallback: some backends expose /api/products/:slug always
+        if (category === "tshirt") {
+          const fallback = await fetch(`${API_BASE}/api/products/${encodeURIComponent(slug)}`);
+          if (fallback.ok) {
+            const data = await fallback.json();
+            if (alive) setProduct(data);
+            return;
+          }
         }
-        const data = await res.json();
-        if (alive) setProduct(data);
-      } catch (e) {
-        if (alive) setError(e.message || "Failed to load product");
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || `HTTP ${res.status}`);
       }
-    })();
+      const data = await res.json();
+      if (alive) setProduct(data);
+    } catch (e) {
+      if (alive) setError(e.message || "Failed to load product");
+    }
+  })();
 
-    return () => { alive = false; };
-  }, [API_BASE, slug]);
+  return () => { alive = false; };
+}, [API_BASE, category, slug]);
+
 
   // ---- early returns come AFTER all hooks ----
   if (error) {

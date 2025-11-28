@@ -1,6 +1,11 @@
+// src/components/TemplateTile.jsx
 import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { renderTemplateDataURL } from "../utils/makePreview";
+import { CATEGORY_DIMS } from "../utils/categoryDims"; // optional: centralize dims here OR duplicate small map
+
+// If you don't create a separate file, fallback dims here:
+const FALLBACK_DIMS = { w: 412, h: 412 };
 
 export default function TemplateTile({ template }) {
   const [sp] = useSearchParams();
@@ -8,6 +13,16 @@ export default function TemplateTile({ template }) {
 
   const [paletteIdx, setPaletteIdx] = useState(0);
   const [previewSrc, setPreviewSrc] = useState("");
+  const [dims, setDims] = useState(FALLBACK_DIMS);
+
+  useEffect(() => {
+    const category =
+      (template.categories && template.categories.find((c) => CATEGORY_DIMS?.[c])) ||
+      fromProduct ||
+      "default";
+    const d = (CATEGORY_DIMS && CATEGORY_DIMS[category]) || FALLBACK_DIMS;
+    setDims(d);
+  }, [template, fromProduct]);
 
   useEffect(() => {
     let alive = true;
@@ -19,26 +34,54 @@ export default function TemplateTile({ template }) {
         jobTitle: "Job Title",
         logoUrl: "", // put a default logo path here to see a logo by default
       };
-      const url = await renderTemplateDataURL({ template, palette, data: sample, width: 412 });
-      if (alive) setPreviewSrc(url);
+      try {
+        const url = await renderTemplateDataURL({
+          template,
+          palette,
+          data: sample,
+          width: dims.w,
+          height: dims.h,
+        });
+        if (alive) setPreviewSrc(url);
+      } catch (err) {
+        console.error("Preview generation failed", err);
+      }
     })();
-    return () => { alive = false; };
-  }, [template, paletteIdx]);
+    return () => {
+      alive = false;
+    };
+  }, [template, paletteIdx, dims]);
 
   const paletteId = template.palettes?.[paletteIdx]?.id;
-  const href = `/designer/${template.id}?product=${fromProduct}${paletteId ? `&palette=${paletteId}` : ""}`;
+  const href = `/designer/${template.id}?product=${fromProduct}${
+    paletteId ? `&palette=${paletteId}` : ""
+  }`;
+
+  // render with padding-top trick to preserve AR
+  const aspectPercent = (dims.h / dims.w) * 100;
 
   return (
     <div className="border rounded-2xl bg-white hover:shadow-lg overflow-hidden">
-      {/* clickable preview like Vistaprint */}
       <Link to={href} className="block" style={{ display: "inherit" }}>
-        <img
-          alt={`Design Preview for ${template.name}`}
-          src={previewSrc}
-          width={412}
-          loading="lazy"
-          style={{ aspectRatio: 1, background: "#f3f3f3", display: "block", width: "100%" }}
-        />
+        <div style={{ width: "100%", maxWidth: 412 }}>
+          <div style={{ position: "relative", width: "100%", paddingTop: `${aspectPercent}%` }}>
+            <img
+              alt={`Design Preview for ${template.name}`}
+              src={previewSrc}
+              loading="lazy"
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                background: "#f3f3f3",
+                display: "block",
+              }}
+            />
+          </div>
+        </div>
       </Link>
 
       <div className="p-4">
