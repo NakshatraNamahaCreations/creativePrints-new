@@ -39,7 +39,7 @@ const ProductCard = ({ item, onClick }) => {
       )}
 
       {/* Product Image */}
-      <div className="relative w-full h-48 mb-2 overflow-hidden rounded-lg">
+      <div className="relative w-full h-78 mb-2 overflow-hidden rounded-lg">
         <img
           src={item?.image}
           alt={item?.title}

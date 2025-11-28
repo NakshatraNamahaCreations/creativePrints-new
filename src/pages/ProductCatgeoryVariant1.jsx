@@ -13,15 +13,17 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 
 // adapt backend Product → your ProductCard props
 const toCardItem = (p) => ({
-  id: p._id || p.slug || p.title,         // key
+  id: p._id || p.slug || p.title,
   title: p.title,
   subtitle: p.subtitle || "",
   badge: p.badge || "",
-  price: p.priceText || "",               // ProductCard expects `price`
+  price: p.priceText || "",
   image: p.image,
   rating: p.rating ?? 0,
   slug: p.slug,
+  productType: p.productType || "visiting-card",   // 👈 new
 });
+
 
 export default function ProductCatgeoryVariant1() {
   const navigate = useNavigate();
@@ -86,15 +88,16 @@ export default function ProductCatgeoryVariant1() {
 
           <div className="grid md:grid-cols-5 gap-6 m-4">
             {shapes.map((item) => (
-              <ProductCard
-                key={item.id}
-                item={item}
-                onClick={() =>
-                  navigate(
-                    `/products/visiting-card/${item.slug || encodeURIComponent(item.title)}`
-                  )
-                }
-              />
+             <ProductCard
+          key={item.id}
+          item={item}
+          onClick={() =>
+          navigate(
+      `/products/${item.productType || "visiting-card"}/${item.slug || encodeURIComponent(item.title)}`
+    )
+  }
+/>
+
               
             ))}
           </div>
@@ -157,16 +160,7 @@ export default function ProductCatgeoryVariant1() {
             </div>
           </div>
 
-          {/* Keep your existing RoundCard data for now, or add an Industries API later */}
-          {/* <div className="grid md:grid-cols-5 gap-6 m-4">
-            {industries.map((item) => (
-              <RoundCard
-                key={item.id}
-                item={item}
-                onClick={() => navigate(`/description/${item.slug}`)}
-              />
-            ))}
-          </div> */}
+     
         </div>
       </section>
 

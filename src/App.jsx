@@ -39,7 +39,7 @@ const App = () => {
         <Route path="/tshirt-category" element={<TshirtCatgeoryVariant1 />} />
         {/* product description */}
         <Route path="/products/:category/:slug" element={<Description />} />
-         
+          
         {/* user account */}
         <Route path="/account/:tabId?" element={<MyAccount />} />
         <Route path="/account" element={<MyAccount />} />

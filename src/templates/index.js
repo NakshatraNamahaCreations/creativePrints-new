@@ -837,7 +837,156 @@ export const TEMPLATES = [
       },
     },
   },
-  
+{
+  id: "premium-letterhead",
+  name: "Premium Letterhead",
+  categories: ["letterhead"],
+  // optional print spec – A4-ish
+  spec: {
+    widthMM: 210,
+    heightMM: 297,
+  },
+  palettes: [
+    {
+      id: "blue_header",
+      bg: "#FFFFFF",
+      primary: "#0B3A82",
+      accent: "#2563EB",   // header band
+      accent2: "#E5E7EB",  // light grey/footer
+    },
+  ],
+
+  sides: {
+    front: {
+      elements: [
+        // full white background
+        { type: "rect", x: 0, y: 0, w: "100%", h: "100%", fill: "{bg}" },
+
+        // ===== TOP HEADER =====
+        // solid accent (your renderer doesn't do gradients, so we approximate)
+        { type: "rect", x: 0, y: 0, w: "100%", h: "18%", fill: "{accent}" },
+
+        // Company name (top-left, white)
+        {
+          type: "text",
+          bindTo: "companyName",
+          x: "6%",
+          y: "5%",
+          fontSize: 18,
+          fontWeight: 700,
+          fill: "#FFFFFF",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+
+        // Tagline / subtitle
+        {
+          type: "text",
+          bindTo: "companyMessage",
+          x: "6%",
+          y: "11%",
+          fontSize: 11,
+          fontWeight: 400,
+          fill: "#E5E7EB",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+
+        // Logo box on right (light rounded square)
+        {
+          type: "rect",
+          x: "82%",
+          y: "6%",
+          w: "10%",
+          h: "10%",
+          fill: "#F3F4F6",
+          rx: 6,
+          ry: 6,
+        },
+        {
+          type: "image",
+          bindTo: "logoUrl",
+          x: "82%",
+          y: "6%",
+          w: "10%",
+          h: "10%",
+        },
+
+        // ===== FOOTER =====
+        // light grey footer band
+        {
+          type: "rect",
+          x: 0,
+          y: "82%",
+          w: "100%",
+          h: "18%",
+          fill: "{accent2}",
+        },
+
+        // Address (bottom-left)
+        {
+          type: "text",
+          bindTo: "address1",
+          x: "8%",
+          y: "87%",
+          fontSize: 11,
+          fontWeight: 400,
+          fill: "#4B5563",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+        {
+          type: "text",
+          bindTo: "address2",
+          x: "8%",
+          y: "91%",
+          fontSize: 11,
+          fontWeight: 400,
+          fill: "#4B5563",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+
+        // Contact block (bottom-right)
+        {
+          type: "text",
+          bindTo: "phone",
+          x: "68%",
+          y: "87%",
+          fontSize: 11,
+          fontWeight: 500,
+          fill: "#4B5563",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+        {
+          type: "text",
+          bindTo: "email",
+          x: "68%",
+          y: "91%",
+          fontSize: 11,
+          fontWeight: 400,
+          fill: "#4B5563",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+        {
+          type: "text",
+          bindTo: "web",
+          x: "68%",
+          y: "95%",
+          fontSize: 11,
+          fontWeight: 500,
+          fill: "{primary}",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+      ],
+    },
+
+    // back side – keep blank for now
+    back: {
+      elements: [
+        { type: "rect", x: 0, y: 0, w: "100%", h: "100%", fill: "{bg}" },
+      ],
+    },
+  },
+},
+
+
   
 ];
 

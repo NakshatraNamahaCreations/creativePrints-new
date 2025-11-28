@@ -424,6 +424,119 @@ export default function TemplatePreview({
     );
   }
 
+  // ===== Template: lh_premium_letterhead (basic letterhead for Premium Letterhead product) =====
+  if (templateId === "premium-letterhead") {
+    const headerBg = `linear-gradient(135deg, ${
+      palette.primary || "#0B3A82"
+    } 0%, ${palette.accent || "#2563EB"} 55%, ${palette.accent2 || "#E5E7EB"} 100%)`;
+
+    return (
+      <div
+        className={className}
+        style={{
+          width,
+          height,
+          borderRadius: 8,
+          border: "1px solid #e5e7eb",
+          backgroundColor: "#ffffff",
+          position: "relative",
+          overflow: "hidden",
+          fontFamily: 'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        }}
+      >
+        {/* TOP BAND */}
+        <div
+          style={{
+            height: "18%",
+            padding: "10px 18px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            background: headerBg,
+            color: "#ffffff",
+          }}
+        >
+          <div style={{ lineHeight: 1.2 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 0.4,
+              }}
+            >
+              {companyName}
+            </div>
+            <div
+              style={{
+                fontSize: 9,
+                marginTop: 4,
+                opacity: 0.9,
+              }}
+            >
+              {companyMessage?.trim() || "Professional branded letterhead"}
+            </div>
+          </div>
+
+          {/* logo box on the right */}
+          <LogoBox size={34} radius={4} logoUrl={logoUrl} />
+        </div>
+
+        {/* BODY – fake text lines */}
+        {/* <div
+          style={{
+            position: "absolute",
+            top: "20%",
+            bottom: "22%",
+            left: 22,
+            right: 22,
+          }}
+        >
+          {Array.from({ length: 7 }).map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                height: 3,
+                borderRadius: 9999,
+                backgroundColor: "#e5e7eb",
+                marginTop: idx === 0 ? 14 : 8,
+                width: `${90 - idx * 6}%`,
+              }}
+            />
+          ))}
+        </div> */}
+
+        {/* FOOTER – contact bar */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: "18%",
+            borderTop: "1px solid #e5e7eb",
+            backgroundColor: palette.accent2 || "#f9fafb",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 18px",
+            fontSize: 9,
+            color: "#4b5563",
+          }}
+        >
+          <div style={{ lineHeight: 1.4 }}>
+            <div>{address1 || address || "Address Line 1"}</div>
+            <div>{address2 || "City, State – PIN"}</div>
+          </div>
+
+          <div style={{ textAlign: "right", lineHeight: 1.4 }}>
+            <div>{phone || "Phone"}</div>
+            <div>{email || "you@email.com"}</div>
+            <div>{web}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
 
  if (templateId === "vp_ribbon2") {

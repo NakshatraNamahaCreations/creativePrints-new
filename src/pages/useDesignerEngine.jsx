@@ -8,17 +8,30 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:5000";
 const fabric = FabricNS.fabric ?? FabricNS.default ?? FabricNS;
 
 // CATEGORY -> base px mapping (tweak as needed)
-// before you had numbers — now allow objects
 const CATEGORY_DIMENSIONS = {
   standard: { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },
-    "rounded-corner": { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 4 }, 
-  rounded: { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 }, // 4mm corner radius
+  "rounded-corner": { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 4 },
+  rounded: { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },
   labels: { dpi: 280, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },
-  square: { dpi: 220, widthMM: 60, heightMM: 60, cornerRadiusMM: 2 }, 
+  square: { dpi: 220, widthMM: 60, heightMM: 60, cornerRadiusMM: 2 },
   special: { dpi: 400, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },
-  "circle-visiting-cards": { dpi: 250, widthMM: 59, heightMM: 61, cornerRadiusMM: 50 }, 
-  "oval-visiting-cards": { dpi: 250, widthMM: 59, heightMM: 61, cornerRadiusMM: 60 }, 
+  "circle-visiting-cards": {
+    dpi: 250,
+    widthMM: 59,
+    heightMM: 61,
+    cornerRadiusMM: 50,
+  },
+  "oval-visiting-cards": {
+    dpi: 250,
+    widthMM: 59,
+    heightMM: 61,
+    cornerRadiusMM: 60,
+  },
+
+  // 👇 new preview spec for letterhead
+  letterhead: { dpi: 72, widthMM: 210, heightMM: 297, cornerRadiusMM: 4 },
 };
+
 const DEFAULT_SPEC = { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 0 };
 
 
@@ -140,36 +153,52 @@ function buildSideSnapshot({ tplBase, side, runtimeEls, deletedKeys }) {
 export default function useDesignerEngine(templateId, navigate) {
   const templateBase = useMemo(() => findTemplate(templateId), [templateId]);
 
-// src/pages/useDesignerEngine.jsx (replace the baseSpec useMemo)
-const baseSpec = useMemo(() => {
-  if (!templateBase) return DEFAULT_SPEC;
+  // 🔧 BASE SPEC: choose dimensions
+  const baseSpec = useMemo(() => {
+    if (!templateBase) return DEFAULT_SPEC;
 
-  // allow template to explicitly declare its card spec
-  if (templateBase.spec && typeof templateBase.spec === "object") {
-    // ensure we have default fields
-    return {
-      dpi: templateBase.spec.dpi ?? DEFAULT_SPEC.dpi,
-      widthMM: templateBase.spec.widthMM ?? DEFAULT_SPEC.widthMM,
-      heightMM: templateBase.spec.heightMM ?? DEFAULT_SPEC.heightMM,
-      cornerRadiusMM: templateBase.spec.cornerRadiusMM ?? DEFAULT_SPEC.cornerRadiusMM,
-    };
-  }
+    // read ?product=premium-letterhead from URL (only inside hook)
+    let productSlug = "";
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      productSlug = params.get("product") || "";
+    }
 
-  // otherwise infer from categories (existing logic)
-  const cats = (templateBase.categories || []).map((c) => String(c).toLowerCase());
+    // hard override for premium letterhead
+    if (productSlug === "premium-letterhead") {
+      return CATEGORY_DIMENSIONS.letterhead;
+    }
 
-  for (const c of cats) {
-    if (CATEGORY_DIMENSIONS[c]) return CATEGORY_DIMENSIONS[c];
-    if (c.includes("square") && CATEGORY_DIMENSIONS["square"]) return CATEGORY_DIMENSIONS["square"];
-    if (c.includes("round") && CATEGORY_DIMENSIONS["rounded"]) return CATEGORY_DIMENSIONS["rounded"];
-    if (c.includes("label") && CATEGORY_DIMENSIONS["labels"]) return CATEGORY_DIMENSIONS["labels"];
-  }
+    // 1) explicit spec on template (optional)
+    if (templateBase.spec && typeof templateBase.spec === "object") {
+      return {
+        dpi: templateBase.spec.dpi ?? DEFAULT_SPEC.dpi,
+        widthMM: templateBase.spec.widthMM ?? DEFAULT_SPEC.widthMM,
+        heightMM: templateBase.spec.heightMM ?? DEFAULT_SPEC.heightMM,
+        cornerRadiusMM:
+          templateBase.spec.cornerRadiusMM ?? DEFAULT_SPEC.cornerRadiusMM,
+      };
+    }
 
-  return DEFAULT_SPEC;
-}, [templateBase]);
+    // 2) infer from categories (includes "letterhead" if you added it there)
+    const cats = (templateBase.categories || []).map((c) =>
+      String(c).toLowerCase()
+    );
 
+    for (const c of cats) {
+      if (CATEGORY_DIMENSIONS[c]) return CATEGORY_DIMENSIONS[c];
+      if (c.includes("square") && CATEGORY_DIMENSIONS.square)
+        return CATEGORY_DIMENSIONS.square;
+      if (c.includes("round") && CATEGORY_DIMENSIONS.rounded)
+        return CATEGORY_DIMENSIONS.rounded;
+      if (c.includes("label") && CATEGORY_DIMENSIONS.labels)
+        return CATEGORY_DIMENSIONS.labels;
+    }
 
-const CARD = useMemo(() => buildCardPx(baseSpec), [baseSpec]);
+    return DEFAULT_SPEC;
+  }, [templateBase]);
+
+  const CARD = useMemo(() => buildCardPx(baseSpec), [baseSpec]);
 
   const [side, setSide] = useState("front");
   const urlParams =

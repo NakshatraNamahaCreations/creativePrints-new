@@ -19,6 +19,9 @@ const CATEGORY_DIMS = {
   "circle-visiting-cards": { w: 320, h: 320 },
   "oval-visiting-cards":{w: 280, h: 337},
   default: { w: THUMB_W, h: 180 },
+  "letterhead":{w:300, h:400 },
+  "premium-letterhead": { w: 300, h: 400 }, // or 500, etc.
+
 };
 
 // optional map when URL product slugs should expand to multiple categories
@@ -28,6 +31,7 @@ const PRODUCT_CATEGORY_MAP = {
   labels: ["labels"],
   banners: ["banners"],
   square: ["square"],
+   "premium-letterhead": ["letterhead"],
 };
 
 // normalize a category string into the canonical key used by CATEGORY_DIMS
