@@ -1,42 +1,186 @@
 // src/components/SidebarAndCanvas.jsx
-import React from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import TrashIcon from "./TrashIcon.jsx";
+import TextToolbar from "./TextToolbar.jsx";
 
-export default function SidebarAndCanvas({
-  // data / form
-  FIELD_DEFS,
-  data,
-  setData,
-  runtimeEls,
-  addNewTextField,
-  deleteFieldByKey,
-  deletedKeys,
-  styleOverrides,
-  setStyleOverrides,
+const DESIGN_STORAGE_KEY = "myCardDesign_v1";
 
-  // toggles
-  autoHideEmpty,
-  setAutoHideEmpty,
-  dragEnabled,
-  setDragEnabled,
+export default function SidebarAndCanvas(props) {
+  const {
+    FIELD_DEFS,
+    data,
+    setData,
+    runtimeEls,
+    addNewTextField,
+    deleteFieldByKey,
+    deletedKeys,
+    styleOverrides,
+    setStyleOverrides,
+    autoHideEmpty,
+    setAutoHideEmpty,
+    dragEnabled,
+    setDragEnabled,
+    CARD,
+    side,
+    setSide,
+    canvasRef,
+    showPreview,
+    setShowPreview,
+    fabricRef,
+    activeEdit,
+    setActiveEdit,
+    editInputRef,
+    commitActiveEdit,
+  } = props;
 
-  // canvas props
-  CARD,
-  side,
-  setSide,
-  canvasRef,
+  const [selectedObject, setSelectedObject] = useState(null);
 
-  // preview modal props
-  showPreview,
-  setShowPreview,
-  fabricRef,
+  // actual Fabric canvas instance (if already initialized)
+  const fabricCanvas = fabricRef?.current || null;
 
-  // inline edit bubble props
-  activeEdit,
-  setActiveEdit,
-  editInputRef,
-  commitActiveEdit,
-}) {
+  // -----------------------
+  // 1) Selection handling
+  // -----------------------
+  useEffect(() => {
+    const canvas = fabricCanvas;
+    if (!canvas) return;
+
+    const handleSelection = (e) => {
+      const obj = e.selected?.[0] || null;
+      if (obj && ["text", "textbox", "i-text"].includes(obj.type)) {
+        setSelectedObject(obj);
+      } else {
+        setSelectedObject(null);
+      }
+    };
+
+    const clearSelection = () => setSelectedObject(null);
+
+    canvas.on("selection:created", handleSelection);
+    canvas.on("selection:updated", handleSelection);
+    canvas.on("selection:cleared", clearSelection);
+
+    return () => {
+      canvas.off("selection:created", handleSelection);
+      canvas.off("selection:updated", handleSelection);
+      canvas.off("selection:cleared", clearSelection);
+    };
+  }, [fabricCanvas]);
+
+  useEffect(() => {
+  const canvas = fabricRef.current;
+  if (!canvas) return;
+
+  canvas.getObjects().forEach((obj) => {
+    const bindTo = obj.data?.bindTo;
+    if (!bindTo) return;
+
+    if (typeof data?.[bindTo] === "string") {
+      obj.set("text", data[bindTo]);
+    }
+  });
+
+  canvas.requestRenderAll();
+}, [data, fabricRef]);
+
+  // -----------------------
+  // 2) Save design -> localStorage
+  // -----------------------
+  const saveDesign = useCallback(() => {
+    if (typeof window === "undefined") return;
+
+    const canvas = fabricRef.current;
+    if (!canvas) return;
+
+    try {
+      const canvasJSON = canvas.toJSON(["data", "bindTo"]);
+
+      const payload = {
+        canvasJSON,
+        data,
+        styleOverrides,
+        side,
+      };
+
+      window.localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(payload));
+      // console.log("Design autosaved");
+    } catch (err) {
+      console.error("Failed to save design", err);
+    }
+  }, [data, styleOverrides, side, fabricRef]);
+
+  // -----------------------
+  // 3) Auto-save on canvas changes (drag, resize, text styling)
+  // -----------------------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const canvas = fabricCanvas;
+    if (!canvas) return;
+
+    let timeoutId = null;
+
+    const handleChange = () => {
+      // debounce so we don't spam localStorage
+      clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => {
+        saveDesign();
+      }, 500);
+    };
+
+    // after:render fires whenever canvas re-renders
+    canvas.on("after:render", handleChange);
+
+    return () => {
+      canvas.off("after:render", handleChange);
+      clearTimeout(timeoutId);
+    };
+  }, [saveDesign, fabricCanvas]);
+
+  // -----------------------
+  // 4) Also auto-save when form data / styleOverrides / side change
+  // -----------------------
+  useEffect(() => {
+    saveDesign();
+  }, [data, styleOverrides, side, saveDesign]);
+
+  // -----------------------
+  // 5) Load saved design on mount
+  // -----------------------
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const canvas = fabricCanvas;
+    if (!canvas) return;
+
+    const saved = window.localStorage.getItem(DESIGN_STORAGE_KEY);
+    if (!saved) return;
+
+    try {
+      const parsed = JSON.parse(saved);
+      const {
+        canvasJSON,
+        data: savedData,
+        styleOverrides: savedStyles,
+        side: savedSide,
+      } = parsed || {};
+
+      if (savedData) setData(savedData);
+      if (savedStyles) setStyleOverrides(savedStyles);
+      if (savedSide) setSide(savedSide);
+
+      if (canvasJSON) {
+        canvas.loadFromJSON(canvasJSON, () => {
+          canvas.renderAll();
+        });
+      }
+    } catch (err) {
+      console.error("Failed to load saved design", err);
+    }
+  }, [fabricCanvas, setData, setStyleOverrides, setSide]);
+
+  // --------------------------------
+  // UI RENDER
+  // --------------------------------
   return (
     <>
       {/* BODY: sidebar + canvas */}
@@ -219,59 +363,62 @@ export default function SidebarAndCanvas({
         </aside>
 
         {/* Canvas preview area */}
-        <section className="flex flex-col items-center justify-center">
-         <div
-  className="rounded-xl border bg-white  shadow-[0_20px_50px_rgba(0,0,0,0.06)] relative"
-  style={{
-    borderRadius: CARD.cornerRadiusPx ? `${CARD.cornerRadiusPx}px` : undefined,
-    overflow: CARD.cornerRadiusPx ? "hidden" : undefined,
-  }}
->
-  <canvas ref={canvasRef} width={CARD.w} height={CARD.h} />
-</div>
+      {/* Canvas preview area */}
+<section className="relative flex flex-col items-center justify-center">
+  {/* floating toolbar over the card */}
+  <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-20">
+    <TextToolbar
+      canvas={fabricCanvas}
+      selectedObject={selectedObject}
+    />
+  </div>
 
+  {/* add margin-top so card sits under toolbar */}
+  <div
+    className="mt-10 rounded-xl border bg-white shadow-[0_20px_50px_rgba(0,0,0,0.06)] relative"
+    style={{
+      borderRadius: CARD.cornerRadiusPx
+        ? `${CARD.cornerRadiusPx}px`
+        : undefined,
+      overflow: CARD.cornerRadiusPx ? "hidden" : undefined,
+    }}
+  >
+    <canvas ref={canvasRef} width={CARD.w} height={CARD.h} />
+  </div>
 
-          {/* card size note */}
-          <div className="text-center text-xs text-gray-500 mt-2">
-            {side === "front" ? "Front" : "Back"} • Standard{" "}
-            {CARD.widthMM}×{CARD.heightMM} mm preview (screen px)
-          </div>
+  <div className="text-center text-xs text-gray-500 mt-2">
+    {side === "front" ? "Front" : "Back"} • Standard {CARD.widthMM}×
+    {CARD.heightMM} mm preview (screen px)
+  </div>
 
-          {/* FRONT / BACK TOGGLE UNDER CARD */}
-          <div className="mt-6 flex items-center justify-center gap-0 text-sm">
-            {/* FRONT button */}
-            <button
-              type="button"
-              onClick={() => setSide("front")}
-              className={`px-4 py-3 border rounded-l-md focus:outline-none ${
-                side === "front"
-                  ? "bg-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] ring-2 ring-blue-500"
-                  : "bg-white border-gray-300 hover:ring-1 hover:ring-blue-300"
-              }`}
-              style={{
-                minWidth: "100px",
-              }}
-            >
-              Front
-            </button>
+  <div className="mt-6 flex items-center justify-center gap-0 text-sm">
+    <button
+      type="button"
+      onClick={() => setSide("front")}
+      className={`px-4 py-3 border rounded-l-md focus:outline-none ${
+        side === "front"
+          ? "bg-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] ring-2 ring-blue-500"
+          : "bg-white border-gray-300 hover:ring-1 hover:ring-blue-300"
+      }`}
+      style={{ minWidth: "100px" }}
+    >
+      Front
+    </button>
+    <button
+      type="button"
+      onClick={() => setSide("back")}
+      className={`px-4 py-3 border rounded-r-md focus:outline-none ${
+        side === "back"
+          ? "bg-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] ring-2 ring-blue-500"
+          : "bg-white border-gray-300 hover:ring-1 hover:ring-blue-300"
+      }`}
+      style={{ minWidth: "100px" }}
+    >
+      Back
+    </button>
+  </div>
+</section>
 
-            {/* BACK button */}
-            <button
-              type="button"
-              onClick={() => setSide("back")}
-              className={`px-4 py-3 border rounded-r-md focus:outline-none ${
-                side === "back"
-                  ? "bg-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] ring-2 ring-blue-500"
-                  : "bg-white border-gray-300 hover:ring-1 hover:ring-blue-300"
-              }`}
-              style={{
-                minWidth: "100px",
-              }}
-            >
-              Back
-            </button>
-          </div>
-        </section>
       </div>
 
       {/* Preview modal */}
@@ -323,7 +470,6 @@ export default function SidebarAndCanvas({
             onChange={(e) => {
               const newVal = e.target.value;
 
-              // update bubble state
               setActiveEdit((prev) =>
                 prev
                   ? {
@@ -333,16 +479,11 @@ export default function SidebarAndCanvas({
                   : prev
               );
 
-              // live update on canvas
               const c = fabricRef.current;
               if (!c) return;
               const target = c
                 .getObjects()
-                .find(
-                  (o) =>
-                    o.data &&
-                    o.data.elId === activeEdit.elId
-                );
+                .find((o) => o.data && o.data.elId === activeEdit.elId);
               if (target && target.type === "text") {
                 target.set("text", newVal);
                 c.requestRenderAll();

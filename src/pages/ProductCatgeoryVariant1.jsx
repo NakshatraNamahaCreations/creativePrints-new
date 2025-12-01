@@ -33,30 +33,58 @@ export default function ProductCatgeoryVariant1() {
   const [specialty, setSpecialty] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
+  const [letterheads, setLetterheads] = useState([]);
+
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      try {
-        const [r1, r2, r3] = await Promise.all([
-          fetch(`${API_BASE}/api/products?group=shape`),
-          fetch(`${API_BASE}/api/products?group=paper`),
-          fetch(`${API_BASE}/api/products?group=specialty`),
-        ]);
-        if (!r1.ok || !r2.ok || !r3.ok) throw new Error("API request failed");
+     try {
+  const [r1, r2, r3, r4] = await Promise.all([
+    fetch(`${API_BASE}/api/products?group=shape`),
+    fetch(`${API_BASE}/api/products?group=paper`),
+    fetch(`${API_BASE}/api/products?group=specialty`),
+    fetch(`${API_BASE}/api/products?productType=letterhead`),
+  ]);
 
-        const [d1, d2, d3] = await Promise.all([r1.json(), r2.json(), r3.json()]);
-        if (cancelled) return;
+  if (!r1.ok || !r2.ok || !r3.ok || !r4.ok) {
+    throw new Error("API request failed");
+  }
 
-        setShapes(d1.map(toCardItem));
-        setPapers(d2.map(toCardItem));
-        setSpecialty(d3.map(toCardItem));
-      } catch (e) {
-        if (!cancelled) setErr(e.message || "Failed to load products");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  const [d1, d2, d3, d4] = await Promise.all([
+    r1.json(),
+    r2.json(),
+    r3.json(),
+    r4.json(),       // 👈 now part of the same array
+  ]);
+
+  if (cancelled) return;
+
+  setShapes(d1.map(toCardItem));
+
+// optional: remove letterheads from papers if you don't want them there
+setPapers(
+  d2
+    .filter((p) => p.productType !== "letterhead")
+    .map(toCardItem)
+);
+
+setSpecialty(d3.map(toCardItem));
+
+// ✅ force only letterheads into this state
+setLetterheads(
+  d4
+    .filter((p) => p.productType === "letterhead")
+    .map(toCardItem)
+);
+
+} catch (e) {
+  if (!cancelled) setErr(e.message || "Failed to load products");
+} finally {
+  if (!cancelled) setLoading(false);
+}
+
     }
 
     load();
@@ -76,9 +104,14 @@ export default function ProductCatgeoryVariant1() {
   return (
     <div>
       <Breadcrumb items={breadcrumbItems} />
-      <div>
-        <img src="/ss.png" alt="banner" />
-      </div>
+      <div className="w-full flex justify-center">
+  <img 
+    src="/ss.png" 
+    alt="banner"
+    className="w-full max-w-screen-2xl object-cover"
+  />
+</div>
+
 
       <section className="m-8">
         {/* Shop by shapes */}
@@ -114,7 +147,7 @@ export default function ProductCatgeoryVariant1() {
                 key={item.id}
                 item={item}
                 onClick={() =>
-                  navigate(`/products/visiting-card/${item.slug || encodeURIComponent(item.title)}`)
+                   `/products/${item.productType || "visiting-card"}/${item.slug || encodeURIComponent(item.title)}`
                 }
               />
             ))}
@@ -137,12 +170,32 @@ export default function ProductCatgeoryVariant1() {
                 key={item.id}
                 item={item}
                 onClick={() =>
-                  navigate(`/products/visiting-card/${item.slug || encodeURIComponent(item.title)}`)
+                 navigate(`/products/visiting-card/${item.slug || encodeURIComponent(item.title)}`)
                 }
               />
             ))}
           </div>
         </div>
+
+{/* Letterhead Section */}
+<div className="mt-10">
+  <h3 className="text-xl font-bold px-4 my-3">Shop Letterheads</h3>
+  <p className="px-4 mb-2">Professional branded letterheads for office use.</p>
+
+  <div className="grid md:grid-cols-5 gap-6 m-4">
+    {letterheads.map((item) => (
+      <ProductCard
+        key={item.id}
+        item={item}
+        onClick={() =>
+          navigate(`/products/letterhead/${item.slug}`)   // 👈 force letterhead
+        }
+      />
+    ))}
+  </div>
+</div>
+
+
 
         {/* Creative ways… (kept as-is; wire to dynamic “industries” later if you want) */}
         <div className="mt-10">

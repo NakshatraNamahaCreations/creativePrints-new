@@ -57,7 +57,7 @@ const App = () => {
           path="/visiting-cards/square/templates"
           element={<SquareVisitingCardTemplates />}
         />
-
+        
         {/* new: pre-built template gallery and fabric designer */}
         <Route path="/designs" element={<TemplateGallery />} />
         <Route path="/designer/:templateId" element={<Designer />} />

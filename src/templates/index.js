@@ -837,6 +837,7 @@ export const TEMPLATES = [
       },
     },
   },
+  
 {
   id: "premium-letterhead",
   name: "Premium Letterhead",
@@ -864,15 +865,15 @@ export const TEMPLATES = [
 
         // ===== TOP HEADER =====
         // solid accent (your renderer doesn't do gradients, so we approximate)
-        { type: "rect", x: 0, y: 0, w: "100%", h: "18%", fill: "{accent}" },
+        { type: "rect", x: 0, y: 0, w: "100%", h: "14%", fill: "{accent}" },
 
         // Company name (top-left, white)
         {
           type: "text",
           bindTo: "companyName",
           x: "6%",
-          y: "5%",
-          fontSize: 18,
+          y: "3%",
+          fontSize: 28,
           fontWeight: 700,
           fill: "#FFFFFF",
           fontFamily: "Inter, system-ui, Arial",
@@ -882,10 +883,10 @@ export const TEMPLATES = [
         {
           type: "text",
           bindTo: "companyMessage",
-          x: "6%",
-          y: "11%",
-          fontSize: 11,
-          fontWeight: 400,
+          x: "7%",
+          y: "8%",
+          fontSize: 14,
+          fontWeight: 600,
           fill: "#E5E7EB",
           fontFamily: "Inter, system-ui, Arial",
         },
@@ -893,9 +894,9 @@ export const TEMPLATES = [
         // Logo box on right (light rounded square)
         {
           type: "rect",
-          x: "82%",
-          y: "6%",
-          w: "10%",
+          x: "65%",
+          y: "2%",
+          w: "15%",
           h: "10%",
           fill: "#F3F4F6",
           rx: 6,
@@ -904,76 +905,74 @@ export const TEMPLATES = [
         {
           type: "image",
           bindTo: "logoUrl",
-          x: "82%",
-          y: "6%",
-          w: "10%",
+           x: "65%",
+          y: "2%",
+           w: "17%",
           h: "10%",
+          rx: 6,
+          ry: 6,
         },
 
-        // ===== FOOTER =====
-        // light grey footer band
         {
           type: "rect",
           x: 0,
-          y: "82%",
+          y: "78%",
           w: "100%",
           h: "18%",
           fill: "{accent2}",
         },
 
-        // Address (bottom-left)
         {
           type: "text",
           bindTo: "address1",
           x: "8%",
-          y: "87%",
-          fontSize: 11,
+          y: "83%",
+          fontSize: 14,
           fontWeight: 400,
           fill: "#4B5563",
           fontFamily: "Inter, system-ui, Arial",
         },
-        {
-          type: "text",
-          bindTo: "address2",
-          x: "8%",
-          y: "91%",
-          fontSize: 11,
-          fontWeight: 400,
-          fill: "#4B5563",
-          fontFamily: "Inter, system-ui, Arial",
-        },
+        // {
+        //   type: "text",
+        //   bindTo: "address2",
+        //   x: "8%",
+        //   y: "91%",
+        //   fontSize: 14,
+        //   fontWeight: 400,
+        //   fill: "#4B5563",
+        //   fontFamily: "Inter, system-ui, Arial",
+        // },
 
-        // Contact block (bottom-right)
         {
           type: "text",
           bindTo: "phone",
           x: "68%",
-          y: "87%",
-          fontSize: 11,
+          y: "83%",
+          fontSize: 14,
           fontWeight: 500,
           fill: "#4B5563",
           fontFamily: "Inter, system-ui, Arial",
         },
-        {
-          type: "text",
-          bindTo: "email",
-          x: "68%",
-          y: "91%",
-          fontSize: 11,
-          fontWeight: 400,
-          fill: "#4B5563",
-          fontFamily: "Inter, system-ui, Arial",
-        },
-        {
-          type: "text",
-          bindTo: "web",
-          x: "68%",
-          y: "95%",
-          fontSize: 11,
-          fontWeight: 500,
-          fill: "{primary}",
-          fontFamily: "Inter, system-ui, Arial",
-        },
+        // {
+        //   type: "text",
+        //   bindTo: "email",
+        //   x: "68%",
+        //   y: "91%",
+        //   fontSize: 11,
+        //   fontWeight: 400,
+        //   fill: "#4B5563",
+        //   fontFamily: "Inter, system-ui, Arial",
+        // },
+        // {
+        //   type: "text",
+        //   bindTo: "web",
+        //   x: "38%",
+        //   y: "85%",
+        //   fontSize: 14,
+        //   fontWeight: 500,
+        //   fill: "{primary}",
+        //   fontFamily: "Inter, system-ui, Arial",
+        // },
       ],
     },
 
@@ -986,6 +985,172 @@ export const TEMPLATES = [
   },
 },
 
+{
+  id: "sideband-letterhead",
+  name: "Side Band Letterhead",
+  categories: ["letterhead"],
+
+  spec: {
+    widthMM: 210,
+    heightMM: 297,
+  },
+
+  palettes: [
+    {
+      id: "teal_side",
+      bg: "#FFFFFF",
+      primary: "#065F46",  // dark teal
+      accent: "#14B8A6",   // teal band
+      accent2: "#ECFDF5",  // soft green footer
+    },
+  ],
+
+  sides: {
+    front: {
+      elements: [
+        // Background
+        { type: "rect", x: 0, y: 0, w: "100%", h: "100%", fill: "{bg}" },
+
+        // LEFT SIDE BAND
+        {
+          type: "rect",
+          x: 0,
+          y: 0,
+          w: "10%",      
+          h: "100%",
+          fill: "{accent}",
+        },
+
+        // Small darker strip inside band (adds depth)
+        // {
+        //   type: "rect",
+        //   x: "2%",
+        //   y: "8%",
+        //   w: "4%",
+        //   h: "30%",
+        //   fill: "{primary}",
+        //   rx: 4,
+        //   ry: 4,
+        // },
+
+        // Company name (top right)
+        {
+          type: "text",
+          bindTo: "companyName",
+          x: "13%",
+          y: "3%",
+          fontSize: 28,
+          fontWeight: 700,
+          fill: "{primary}",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+
+        // Tagline / subtitle
+        {
+          type: "text",
+          bindTo: "companyMessage",
+          x: "14%",
+          y: "9%",
+          fontSize: 14,
+          fontWeight: 500,
+          fill: "#6B7280",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+
+        // Logo box on top-right
+        {
+          type: "rect",
+          x: "70%",
+          y: "3%",
+          w: "14%",
+          h: "10%",
+          fill: "#F3F4F6",
+          rx: 6,
+          ry: 6,
+        },
+        {
+          type: "image",
+          bindTo: "logoUrl",
+            x: "70%",
+          y: "4%",
+            w: "16%",
+          h: "10%",
+        },
+
+        // Bottom footer strip
+        {
+          type: "rect",
+          x: 0,
+          y: "78%",
+          w: "100%",
+          h: "15%",
+          fill: "{accent2}",
+        },
+
+        // Address block (left in footer)
+        {
+          type: "text",
+          bindTo: "address1",
+          x: "13%",
+          y: "83%",
+          fontSize: 14,
+          fontWeight: 500,
+          fill: "#374151",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+        // {
+        //   type: "text",
+        //   bindTo: "address2",
+        //   x: "15%",
+        //   y: "94%",
+        //   fontSize: 12,
+        //   fontWeight: 400,
+        //   fill: "#6B7280",
+        //   fontFamily: "Inter, system-ui, Arial",
+        // },
+
+        // Contact block (right in footer)
+        {
+          type: "text",
+          bindTo: "phone",
+          x: "65%",
+          y: "83%",
+          fontSize: 14,
+          fontWeight: 500,
+          fill: "#111827",
+          fontFamily: "Inter, system-ui, Arial",
+        },
+        // {
+        //   type: "text",
+        //   bindTo: "email",
+        //   x: "65%",
+        //   y: "92%",
+        //   fontSize: 12,
+        //   fontWeight: 400,
+        //   fill: "#4B5563",
+        //   fontFamily: "Inter, system-ui, Arial",
+        // },
+        // {
+        //   type: "text",
+        //   bindTo: "web",
+        //   x: "65%",
+        //   y: "96%",
+        //   fontSize: 12,
+        //   fontWeight: 500,
+        //   fill: "{primary}",
+        //   fontFamily: "Inter, system-ui, Arial",
+        // },
+      ],
+    },
+
+    // Back side – minimal, just white
+    back: {
+      elements: [
+        { type: "rect", x: 0, y: 0, w: "100%", h: "100%", fill: "{bg}" },
+      ],
+    },
+  },
+}
 
   
 ];

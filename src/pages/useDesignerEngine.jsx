@@ -34,7 +34,6 @@ const CATEGORY_DIMENSIONS = {
 
 const DEFAULT_SPEC = { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 0 };
 
-
 // Utility helpers (pure)
 const labelFromKey = (key) =>
   key
@@ -180,7 +179,7 @@ export default function useDesignerEngine(templateId, navigate) {
       };
     }
 
-    // 2) infer from categories (includes "letterhead" if you added it there)
+    // 2) infer from categories
     const cats = (templateBase.categories || []).map((c) =>
       String(c).toLowerCase()
     );
@@ -202,16 +201,28 @@ export default function useDesignerEngine(templateId, navigate) {
 
   const [side, setSide] = useState("front");
   const urlParams =
-    typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search)
+      : new URLSearchParams();
   const initialPaletteId = urlParams.get("palette") || "";
   const [paletteIdx, setPaletteIdx] = useState(() => {
     if (!templateBase?.palettes) return 0;
-    const iMatch = templateBase.palettes.findIndex((p) => p.id === initialPaletteId);
+    const iMatch = templateBase.palettes.findIndex(
+      (p) => p.id === initialPaletteId
+    );
     return iMatch >= 0 ? iMatch : 0;
   });
-  const palette = useMemo(() => (templateBase?.palettes?.[paletteIdx] || templateBase?.palettes?.[0]), [templateBase, paletteIdx]);
+  const palette = useMemo(
+    () =>
+      templateBase?.palettes?.[paletteIdx] ||
+      templateBase?.palettes?.[0],
+    [templateBase, paletteIdx]
+  );
 
-  const FIELD_DEFS = useMemo(() => deriveFieldDefs(templateBase, side), [templateBase, side]);
+  const FIELD_DEFS = useMemo(
+    () => deriveFieldDefs(templateBase, side),
+    [templateBase, side]
+  );
 
   const [runtimeEls, setRuntimeEls] = useState([]);
   const [data, setData] = useState({
@@ -261,12 +272,16 @@ export default function useDesignerEngine(templateId, navigate) {
 
   const _toPx = (v, axis) => {
     if (typeof v === "string" && v.endsWith("%")) {
-      return axis === "x" ? (parseFloat(v) / 100) * CARD.w : (parseFloat(v) / 100) * CARD.h;
+      return axis === "x"
+        ? (parseFloat(v) / 100) * CARD.w
+        : (parseFloat(v) / 100) * CARD.h;
     }
     return v ?? 0;
   };
-  const _toPct = (px, axis) => (axis === "x" ? (px / CARD.w) * 100 : (px / CARD.h) * 100);
+  const _toPct = (px, axis) =>
+    axis === "x" ? (px / CARD.w) * 100 : (px / CARD.h) * 100;
 
+  // init Fabric canvas
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -274,7 +289,6 @@ export default function useDesignerEngine(templateId, navigate) {
       try {
         fabricRef.current.dispose();
       } catch (err) {
-        // log but continue
         // eslint-disable-next-line no-console
         console.warn("fabric dispose error:", err);
       }
@@ -307,7 +321,9 @@ export default function useDesignerEngine(templateId, navigate) {
   const loadFabricImage = (url, opts = {}) => {
     const maybe = fabric.Image.fromURL(url, opts);
     if (maybe && typeof maybe.then === "function") return maybe;
-    return new Promise((resolve) => fabric.Image.fromURL(url, (img) => resolve(img), opts));
+    return new Promise((resolve) =>
+      fabric.Image.fromURL(url, (img) => resolve(img), opts)
+    );
   };
 
   const enumeratedTemplate = useMemo(() => {
@@ -336,6 +352,7 @@ export default function useDesignerEngine(templateId, navigate) {
     };
   }, [templateBase, runtimeEls, side]);
 
+  // main render effect (no longer depends on `data`)
   useEffect(() => {
     const tpl = enumeratedTemplate;
     const c = fabricRef.current;
@@ -376,7 +393,8 @@ export default function useDesignerEngine(templateId, navigate) {
     };
 
     (tpl.elements || []).forEach((el) => {
-      const elId = el._elId || `${el.type}-${Math.random().toString(36).slice(2)}`;
+      const elId =
+        el._elId || `${el.type}-${Math.random().toString(36).slice(2)}`;
 
       if (el.bindTo && deletedKeys.has(el.bindTo)) return;
       if (
@@ -389,8 +407,14 @@ export default function useDesignerEngine(templateId, navigate) {
         if (isEmpty) return;
       }
 
-      const xPct = posOverrides[elId]?.xPct != null ? `${posOverrides[elId].xPct}%` : el.x;
-      const yPct = posOverrides[elId]?.yPct != null ? `${posOverrides[elId].yPct}%` : el.y;
+      const xPct =
+        posOverrides[elId]?.xPct != null
+          ? `${posOverrides[elId].xPct}%`
+          : el.x;
+      const yPct =
+        posOverrides[elId]?.yPct != null
+          ? `${posOverrides[elId].yPct}%`
+          : el.y;
 
       if (el.type === "rect") {
         const baseW = el.w === "100%" ? CARD.w : _toPx(el.w, "x");
@@ -405,8 +429,16 @@ export default function useDesignerEngine(templateId, navigate) {
           width: finalW,
           height: finalH,
           fill: resolveColor(el.fill),
-          rx: el.rounded ? (typeof el.rounded === "number" ? el.rounded : 8) : el.rx ?? 0,
-          ry: el.rounded ? (typeof el.rounded === "number" ? el.rounded : 8) : el.ry ?? 0,
+          rx: el.rounded
+            ? typeof el.rounded === "number"
+              ? el.rounded
+              : 8
+            : el.rx ?? 0,
+          ry: el.rounded
+            ? typeof el.rounded === "number"
+              ? el.rounded
+              : 8
+            : el.ry ?? 0,
           selectable: dragEnabled && _isDraggableType("rect"),
           hasControls: dragEnabled,
           lockUniScaling: false,
@@ -416,7 +448,10 @@ export default function useDesignerEngine(templateId, navigate) {
       }
 
       if (el.type === "polygon") {
-        const basePts = (el.points || []).map((p) => ({ x: _toPx(p.x, "x"), y: _toPx(p.y, "y") }));
+        const basePts = (el.points || []).map((p) => ({
+          x: _toPx(p.x, "x"),
+          y: _toPx(p.y, "y"),
+        }));
         const pts = shapeOverrides[elId]?.points ?? basePts;
         const obj = new fabric.Polygon(pts, {
           left: 0,
@@ -432,8 +467,13 @@ export default function useDesignerEngine(templateId, navigate) {
       }
 
       if (el.type === "text" || el.type === "textbox") {
-        const boundText = el.bindTo ? data[el.bindTo] ?? el.text ?? "" : el.text ?? "";
-        const override = el.bindTo && styleOverrides[el.bindTo] ? styleOverrides[el.bindTo] : undefined;
+        const boundText = el.bindTo
+          ? data[el.bindTo] ?? el.text ?? ""
+          : el.text ?? "";
+        const override =
+          el.bindTo && styleOverrides[el.bindTo]
+            ? styleOverrides[el.bindTo]
+            : undefined;
         const fontSize = override?.fontSize ?? el.fontSize ?? 14;
         const obj = new fabric.Text(String(boundText), {
           left: _toPx(xPct, "x"),
@@ -522,7 +562,8 @@ export default function useDesignerEngine(templateId, navigate) {
             const clip =
               el.mask === "circle"
                 ? new fabric.Circle({
-                    radius: Math.min(boxW, boxH) / 2 / (img.scaleX || 1),
+                    radius:
+                      Math.min(boxW, boxH) / 2 / (img.scaleX || 1),
                     left: boxW / 2 / (img.scaleX || 1),
                     top: boxH / 2 / (img.scaleY || 1),
                     originX: "center",
@@ -554,43 +595,93 @@ export default function useDesignerEngine(templateId, navigate) {
       const obj = e?.target;
       if (!obj || !obj.data?.elId) return;
 
-      if (obj.data?.type === "text" && (obj.scaleX !== 1 || obj.scaleY !== 1)) {
+      if (
+        obj.data?.type === "text" &&
+        (obj.scaleX !== 1 || obj.scaleY !== 1)
+      ) {
         const factor = (obj.scaleX + obj.scaleY) / 2;
         const curr = obj.fontSize || 16;
-        const newFont = Math.max(8, Math.min(300, Math.round(curr * factor)));
+        const newFont = Math.max(
+          8,
+          Math.min(300, Math.round(curr * factor))
+        );
         obj.set({ fontSize: newFont, scaleX: 1, scaleY: 1 });
         const bindTo = obj.data?.bindTo;
         if (bindTo) {
-          setStyleOverrides((prev) => ({ ...prev, [bindTo]: { ...(prev[bindTo] || {}), fontSize: newFont } }));
+          setStyleOverrides((prev) => ({
+            ...prev,
+            [bindTo]: {
+              ...(prev[bindTo] || {}),
+              fontSize: newFont,
+            },
+          }));
         }
       }
 
       if (obj.data?.type === "image") {
         const elId = obj.data.elId;
-        setShapeOverrides((prev) => ({ ...prev, [elId]: { ...(prev[elId] || {}), scaleX: obj.scaleX, scaleY: obj.scaleY } }));
+        setShapeOverrides((prev) => ({
+          ...prev,
+          [elId]: {
+            ...(prev[elId] || {}),
+            scaleX: obj.scaleX,
+            scaleY: obj.scaleY,
+          },
+        }));
       }
 
       if (obj.data?.type === "rect") {
         const elId = obj.data.elId;
         const newW = obj.width * obj.scaleX;
         const newH = obj.height * obj.scaleY;
-        setShapeOverrides((prev) => ({ ...prev, [elId]: { ...(prev[elId] || {}), wPx: newW, hPx: newH } }));
-        obj.set({ scaleX: 1, scaleY: 1, width: newW, height: newH });
+        setShapeOverrides((prev) => ({
+          ...prev,
+          [elId]: {
+            ...(prev[elId] || {}),
+            wPx: newW,
+            hPx: newH,
+          },
+        }));
+        obj.set({
+          scaleX: 1,
+          scaleY: 1,
+          width: newW,
+          height: newH,
+        });
       }
 
       if (obj.data?.type === "polygon") {
         const elId = obj.data.elId;
         const sx = obj.scaleX || 1;
         const sy = obj.scaleY || 1;
-        const bakedPts = obj.points.map((p) => ({ x: p.x * sx, y: p.y * sy }));
-        setShapeOverrides((prev) => ({ ...prev, [elId]: { ...(prev[elId] || {}), points: bakedPts } }));
-        obj.set({ scaleX: 1, scaleY: 1, points: bakedPts });
+        const bakedPts = obj.points.map((p) => ({
+          x: p.x * sx,
+          y: p.y * sy,
+        }));
+        setShapeOverrides((prev) => ({
+          ...prev,
+          [elId]: {
+            ...(prev[elId] || {}),
+            points: bakedPts,
+          },
+        }));
+        obj.set({
+          scaleX: 1,
+          scaleY: 1,
+          points: bakedPts,
+        });
       }
 
       const elId = obj.data.elId;
       const left = Math.max(0, Math.min(obj.left, CARD.w));
       const top = Math.max(0, Math.min(obj.top, CARD.h));
-      setPosOverrides((prev) => ({ ...prev, [elId]: { xPct: _toPct(left, "x"), yPct: _toPct(top, "y") } }));
+      setPosOverrides((prev) => ({
+        ...prev,
+        [elId]: {
+          xPct: _toPct(left, "x"),
+          yPct: _toPct(top, "y"),
+        },
+      }));
 
       c.requestRenderAll();
     };
@@ -614,7 +705,7 @@ export default function useDesignerEngine(templateId, navigate) {
   }, [
     enumeratedTemplate,
     palette,
-    data,
+    // ❌ data removed here so toolbar changes don't get reset by re-render
     posOverrides,
     autoHideEmpty,
     dragEnabled,
@@ -623,14 +714,27 @@ export default function useDesignerEngine(templateId, navigate) {
     shapeOverrides,
     CARD.w,
     CARD.h,
-    // include helpers that depend on CARD so linter is satisfied
   ]);
 
   const addNewTextField = () => {
     const bindTo = `custom_${Date.now()}`;
-    const existing = runtimeEls.filter((e) => e.type === "text" && String(e.bindTo || "").startsWith("custom_")).length;
+    const existing = runtimeEls.filter(
+      (e) =>
+        e.type === "text" &&
+        String(e.bindTo || "").startsWith("custom_")
+    ).length;
     const yPct = 74 + existing * 5;
-    const newEl = { type: "text", bindTo, x: "14%", y: `${yPct}%`, fontSize: 12, fontWeight: 400, fill: "#231F20", editable: true, _elId: `rt-${Date.now()}` };
+    const newEl = {
+      type: "text",
+      bindTo,
+      x: "14%",
+      y: `${yPct}%`,
+      fontSize: 12,
+      fontWeight: 400,
+      fill: "#231F20",
+      editable: true,
+      _elId: `rt-${Date.now()}`,
+    };
     setRuntimeEls((els) => [...els, newEl]);
     setData((v) => ({ ...v, [bindTo]: "New text" }));
   };
@@ -642,27 +746,32 @@ export default function useDesignerEngine(templateId, navigate) {
       return next;
     });
 
- setData((v) => {
-  const next = { ...v };
-  if (key === "logoUrl" && next.logoUrl && String(next.logoUrl).startsWith("blob:")) {
-    try {
-      URL.revokeObjectURL(next.logoUrl);
-    } catch {
-      // ignore revoke errors (intentionally empty)
-    }
-  }
-  next[key] = "";
-  return next;
-});
-
-
+    setData((v) => {
+      const next = { ...v };
+      if (
+        key === "logoUrl" &&
+        next.logoUrl &&
+        String(next.logoUrl).startsWith("blob:")
+      ) {
+        try {
+          URL.revokeObjectURL(next.logoUrl);
+        } catch {
+          // ignore
+        }
+      }
+      next[key] = "";
+      return next;
+    });
 
     setRuntimeEls((els) => els.filter((e) => e.bindTo !== key));
   };
 
   const commitActiveEdit = () => {
     if (activeEdit && activeEdit.bindTo) {
-      setData((prev) => ({ ...prev, [activeEdit.bindTo]: activeEdit.value }));
+      setData((prev) => ({
+        ...prev,
+        [activeEdit.bindTo]: activeEdit.value,
+      }));
     }
     setActiveEdit(null);
   };
@@ -671,9 +780,17 @@ export default function useDesignerEngine(templateId, navigate) {
     const c = fabricRef.current;
     if (!c || !templateBase) return "";
 
-    const bakedEls = buildSideSnapshot({ tplBase: templateBase, side: sideKey, runtimeEls, deletedKeys: Array.from(deletedKeys) });
+    const bakedEls = buildSideSnapshot({
+      tplBase: templateBase,
+      side: sideKey,
+      runtimeEls,
+      deletedKeys: Array.from(deletedKeys),
+    });
 
-    const paletteObj = templateBase?.palettes?.[paletteIdx] || templateBase?.palettes?.[0] || {};
+    const paletteObj =
+      templateBase?.palettes?.[paletteIdx] ||
+      templateBase?.palettes?.[0] ||
+      {};
 
     const resolveColor = (val) => {
       if (!val) return val;
@@ -687,7 +804,9 @@ export default function useDesignerEngine(templateId, navigate) {
 
     const toPx = (v, axis) => {
       if (typeof v === "string" && v.endsWith("%")) {
-        return axis === "x" ? (parseFloat(v) / 100) * CARD.w : (parseFloat(v) / 100) * CARD.h;
+        return axis === "x"
+          ? (parseFloat(v) / 100) * CARD.w
+          : (parseFloat(v) / 100) * CARD.h;
       }
       return v ?? 0;
     };
@@ -695,13 +814,20 @@ export default function useDesignerEngine(templateId, navigate) {
     const loadImg = (url, options = {}) => {
       const maybe = fabric.Image.fromURL(url, options);
       if (maybe && typeof maybe.then === "function") return maybe;
-      return new Promise((resolve) => fabric.Image.fromURL(url, (img) => resolve(img), options));
+      return new Promise((resolve) =>
+        fabric.Image.fromURL(url, (img) => resolve(img), options)
+      );
     };
 
     c.clear();
 
     for (const el of bakedEls) {
-      if (el.bindTo && (el.type === "text" || el.type === "textbox" || el.type === "image")) {
+      if (
+        el.bindTo &&
+        (el.type === "text" ||
+          el.type === "textbox" ||
+          el.type === "image")
+      ) {
         if (deletedKeys.has(el.bindTo)) continue;
         const val = data[el.bindTo];
         const isEmpty = val == null || String(val).trim().length === 0;
@@ -726,8 +852,16 @@ export default function useDesignerEngine(templateId, navigate) {
           width: finalW,
           height: finalH,
           fill: resolveColor(el.fill),
-          rx: el.rounded ? (typeof el.rounded === "number" ? el.rounded : 8) : el.rx ?? 0,
-          ry: el.rounded ? (typeof el.rounded === "number" ? el.rounded : 8) : el.ry ?? 0,
+          rx: el.rounded
+            ? typeof el.rounded === "number"
+              ? el.rounded
+              : 8
+            : el.rx ?? 0,
+          ry: el.rounded
+            ? typeof el.rounded === "number"
+              ? el.rounded
+              : 8
+            : el.ry ?? 0,
           selectable: false,
           evented: false,
         });
@@ -736,7 +870,10 @@ export default function useDesignerEngine(templateId, navigate) {
       }
 
       if (el.type === "polygon") {
-        const basePts = (el.points || []).map((p) => ({ x: toPx(p.x, "x"), y: toPx(p.y, "y") }));
+        const basePts = (el.points || []).map((p) => ({
+          x: toPx(p.x, "x"),
+          y: toPx(p.y, "y"),
+        }));
         const pts = ovShape.points ?? basePts;
         const poly = new fabric.Polygon(pts, {
           left: 0,
@@ -752,7 +889,9 @@ export default function useDesignerEngine(templateId, navigate) {
       }
 
       if (el.type === "text" || el.type === "textbox") {
-        const boundText = el.bindTo ? data[el.bindTo] ?? el.text ?? "" : el.text ?? "";
+        const boundText = el.bindTo
+          ? data[el.bindTo] ?? el.text ?? ""
+          : el.text ?? "";
         const fontSize = (ovStyle && ovStyle.fontSize) || el.fontSize || 14;
         const t = new fabric.Text(String(boundText), {
           left: toPx(xPct, "x"),
@@ -776,19 +915,55 @@ export default function useDesignerEngine(templateId, navigate) {
         const url = el.bindTo ? data[el.bindTo] : el.src;
         if (!url) continue;
         // eslint-disable-next-line no-await-in-loop
-        const img = await loadImg(url, String(url).startsWith("blob:") ? {} : { crossOrigin: "anonymous" });
+        const img = await loadImg(
+          url,
+          String(url).startsWith("blob:")
+            ? {}
+            : { crossOrigin: "anonymous" }
+        );
         const iw = img.width || 1;
         const ih = img.height || 1;
         const baseFit = Math.min(boxW / iw, boxH / ih);
         if (ovShape.scaleX && ovShape.scaleY) {
-          img.set({ left, top, scaleX: ovShape.scaleX, scaleY: ovShape.scaleY, selectable: false, evented: false });
+          img.set({
+            left,
+            top,
+            scaleX: ovShape.scaleX,
+            scaleY: ovShape.scaleY,
+            selectable: false,
+            evented: false,
+          });
         } else {
-          img.set({ left, top, scaleX: baseFit, scaleY: baseFit, selectable: false, evented: false });
+          img.set({
+            left,
+            top,
+            scaleX: baseFit,
+            scaleY: baseFit,
+            selectable: false,
+            evented: false,
+          });
         }
         if (el.mask === "circle" || el.mask === "rounded") {
-          const clip = el.mask === "circle"
-            ? new fabric.Circle({ radius: Math.min(boxW, boxH) / 2 / (img.scaleX || 1), left: boxW / 2 / (img.scaleX || 1), top: boxH / 2 / (img.scaleY || 1), originX: "center", originY: "center" })
-            : new fabric.Rect({ width: boxW / (img.scaleX || 1), height: boxH / (img.scaleY || 1), rx: 8 / (img.scaleX || 1), ry: 8 / (img.scaleY || 1), left: 0, top: 0, originX: "left", originY: "top" });
+          const clip =
+            el.mask === "circle"
+              ? new fabric.Circle({
+                  radius:
+                    Math.min(boxW, boxH) / 2 / (img.scaleX || 1),
+                  left: boxW / 2 / (img.scaleX || 1),
+                  top: boxH / 2 / (img.scaleY || 1),
+                  originX: "center",
+                  originY: "center",
+                })
+              : new fabric.Rect({
+                  width: boxW / (img.scaleX || 1),
+                  height: boxH / (img.scaleY || 1),
+                  rx: 8 / (img.scaleX || 1),
+                  ry: 8 / (img.scaleY || 1),
+                  left: 0,
+                  top: 0,
+                  originX: "left",
+                  originY: "top",
+                });
           clip.absolutePositioned = false;
           img.clipPath = clip;
         }
@@ -801,15 +976,26 @@ export default function useDesignerEngine(templateId, navigate) {
   }
 
   async function saveSessionToServer() {
-    const bakedFrontEls = buildSideSnapshot({ tplBase: templateBase, side: "front", runtimeEls, deletedKeys: Array.from(deletedKeys) });
-    const bakedBackEls = buildSideSnapshot({ tplBase: templateBase, side: "back", runtimeEls, deletedKeys: Array.from(deletedKeys) });
+    const bakedFrontEls = buildSideSnapshot({
+      tplBase: templateBase,
+      side: "front",
+      runtimeEls,
+      deletedKeys: Array.from(deletedKeys),
+    });
+    const bakedBackEls = buildSideSnapshot({
+      tplBase: templateBase,
+      side: "back",
+      runtimeEls,
+      deletedKeys: Array.from(deletedKeys),
+    });
 
     const previewFrontPng = await renderSideAndCapture("front");
     const previewBackPng = await renderSideAndCapture("back");
 
     const payload = {
       templateId: templateBase?.id || templateId,
-      paletteId: templateBase?.palettes?.[paletteIdx]?.id || "",
+      paletteId:
+        templateBase?.palettes?.[paletteIdx]?.id || "",
       data,
       runtimeEls,
       deletedKeys: Array.from(deletedKeys),
@@ -822,9 +1008,15 @@ export default function useDesignerEngine(templateId, navigate) {
       previewBackPng,
     };
 
-    const url = sessionId ? `${API_BASE}/api/design-session/${sessionId}` : `${API_BASE}/api/design-session`;
+    const url = sessionId
+      ? `${API_BASE}/api/design-session/${sessionId}`
+      : `${API_BASE}/api/design-session`;
     const method = sessionId ? "PUT" : "POST";
-    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
     if (!res.ok) throw new Error("Failed to save design session");
     const json = await res.json();
     if (!sessionId) setSessionId(json.id);
@@ -852,7 +1044,6 @@ export default function useDesignerEngine(templateId, navigate) {
     templateBase,
     paletteIdx,
     setPaletteIdx,
-    // single setShowPreview exposed (no duplicates)
     setShowPreview,
     saving,
     saveError,

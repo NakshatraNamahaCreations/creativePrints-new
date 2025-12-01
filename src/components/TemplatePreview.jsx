@@ -482,7 +482,7 @@ export default function TemplatePreview({
         </div>
 
         {/* BODY – fake text lines */}
-        {/* <div
+        <div
           style={{
             position: "absolute",
             top: "20%",
@@ -503,7 +503,7 @@ export default function TemplatePreview({
               }}
             />
           ))}
-        </div> */}
+        </div>
 
         {/* FOOTER – contact bar */}
         <div
@@ -537,6 +537,172 @@ export default function TemplatePreview({
       </div>
     );
   }
+
+  if (templateId === "sideband-letterhead") {
+  const sideBandBg = `linear-gradient(180deg, ${
+    palette.accent || "#14B8A6"
+  } 0%, ${(palette.primary || "#065F46")} 100%)`;
+
+  return (
+    <div
+      className={className}
+      style={{
+        width,
+        height,
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        backgroundColor: "#ffffff",
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        fontFamily:
+          'Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      {/* LEFT SIDE BAND */}
+      <div
+        style={{
+          width: "16%",
+          height: "100%",
+          background: sideBandBg,
+          padding: "18px 10px",
+          boxSizing: "border-box",
+          color: "#ffffff",
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "space-between",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              width: 6,
+              height: 40,
+              borderRadius: 999,
+              backgroundColor: "#ffffff33",
+            }}
+          />
+        </div>
+
+        {/* <div
+          style={{
+            fontSize: 9,
+            opacity: 0.9,
+          }}
+        >
+          {web || ""}
+        </div> */}
+      </div>
+
+      {/* RIGHT MAIN AREA */}
+      <div
+        style={{
+          flex: 1,
+          position: "relative",
+          padding: "16px 20px 40px 20px",
+          boxSizing: "border-box",
+        }}
+      >
+        {/* HEADER: Logo + Company */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 10,
+          }}
+        >
+          <div style={{ lineHeight: 1.2 }}>
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 700,
+                color: palette.primary || "#065F46",
+              }}
+            >
+              {companyName}
+            </div>
+            <div
+              style={{
+                fontSize: 9,
+                marginTop: 4,
+                color: "#6b7280",
+              }}
+            >
+              {companyMessage?.trim() || "Business communication that looks refined."}
+            </div>
+          </div>
+
+          <LogoBox
+            size={34}
+            radius={4}
+            logoUrl={logoUrl}
+            bg={palette.accent2 || "#ECFDF5"}
+          />
+        </div>
+
+        {/* Body placeholder (optional) */}
+        
+        <div
+          style={{
+            position: "absolute",
+            top: "26%",
+            bottom: "22%",
+            left: 22,
+            right: 22,
+          }}
+        >
+          {Array.from({ length: 7 }).map((_, idx) => (
+            <div
+              key={idx}
+              style={{
+                height: 3,
+                borderRadius: 9999,
+                backgroundColor: "#e5e7eb",
+                marginTop: idx === 0 ? 14 : 8,
+                width: `${90 - idx * 6}%`,
+              }}
+            />
+          ))}
+        </div>
+       
+
+        {/* FOOTER BAR */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: "18%",
+            borderTop: "1px solid #e5e7eb",
+            backgroundColor: palette.accent2 || "#ECFDF5",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "8px 18px",
+            fontSize: 9,
+            color: "#4b5563",
+            boxSizing: "border-box",
+          }}
+        >
+          {/* Address */}
+          <div style={{ lineHeight: 1.4, maxWidth: "55%" }}>
+            <div>{address1 || address || "Address Line 1"}</div>
+            <div>{address2 || "City, State – PIN"}</div>
+          </div>
+
+          {/* Contact */}
+          <div style={{ textAlign: "right", lineHeight: 1.4 }}>
+            <div>{phone || "Phone"}</div>
+            <div>{email || "you@email.com"}</div>
+            <div>{web}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
  if (templateId === "vp_ribbon2") {

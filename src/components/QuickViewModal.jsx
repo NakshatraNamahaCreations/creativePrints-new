@@ -71,36 +71,42 @@ export default function QuickViewModal({
   }, [open]);
 
   // render the preview
-  useEffect(() => {
-    if (!open || !template || !palette || !fabricRef.current) return;
-    const c = fabricRef.current;
-    c.clear();
+// render the preview
+useEffect(() => {
+  if (!open || !template || !palette || !fabricRef.current) return;
+  const c = fabricRef.current;
+  c.clear();
 
-    // draw same as Designer but without guides; a simple white card with rounded corners
-    const cardPanel = new fabric.Rect({
-      left: 0,
-      top: 0,
-      width: CARD_W,
-      height: CARD_H,
-      rx: mm2px(3, DPI), // subtle rounding
-      ry: mm2px(3, DPI),
-      fill: "#ffffff",
-      selectable: false,
-      evented: false,
-    });
-    c.add(cardPanel);
+  // simple white rounded card
+  const cardPanel = new fabric.Rect({
+    left: 0,
+    top: 0,
+    width: CARD_W,
+    height: CARD_H,
+    rx: mm2px(3, DPI),
+    ry: mm2px(3, DPI),
+    fill: "#ffffff",
+    selectable: false,
+    evented: false,
+  });
+  c.add(cardPanel);
 
-    renderTemplateToFabric({
-      canvas: c,
-      template,
-      palette,
-      data,
-      width: CARD_W,
-      height: CARD_H,
-    });
+  // 👇 pick the correct side definition
+  const sideDef = template.sides?.[side] || template.sides?.front;
 
-    c.renderAll();
-  }, [open, template, palette, side, data]);
+  // 👇 match renderTemplateToFabric signature
+  renderTemplateToFabric({
+    canvas: c,
+    template: sideDef,
+    palette,
+    data,
+    cardSize: { w: CARD_W, h: CARD_H },
+  });
+
+  c.renderAll();
+  // ❗ notice: no `data` in deps (it never changes here anyway)
+}, [open, template, palette, side]);
+
 
   if (!open || !template) return null;
 

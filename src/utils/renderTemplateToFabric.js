@@ -64,19 +64,32 @@ export async function renderTemplateToFabric({
       continue;
     }
 
-    if (el.type === "text" || el.type === "textbox") {
-      const bound = el.bindTo ? (data[el.bindTo] ?? "") : (el.text ?? "");
-      c.add(new fabric.Text(bound, {
-        left: toPx(el.x, "x"),
-        top:  toPx(el.y, "y"),
-        fontFamily: el.fontFamily || "Inter, system-ui, Arial",
-        fontWeight: el.fontWeight || 400,
-        fontSize: el.fontSize || 14,
-        fill: resolveColor(el.fill) || "#111",
-        selectable: false, hasControls: false,
-      }));
-      continue;
-    }
+   if (el.type === "text" || el.type === "textbox") {
+  const bound = el.bindTo ? (data?.[el.bindTo] ?? "") : (el.text ?? "");
+
+  const obj = new fabric.Text(bound, {
+    left: toPx(el.x, "x"),
+    top:  toPx(el.y, "y"),
+    fontFamily: el.fontFamily || "Inter, system-ui, Arial",
+    fontWeight: el.fontWeight || 400,
+    fontSize: el.fontSize || 14,
+    fill: resolveColor(el.fill) || "#111",
+    selectable: true,          // let your app control drag/resize
+    hasControls: true,
+  });
+
+  // 🔴 IMPORTANT: remember which field this text is bound to
+  if (el.bindTo) {
+    obj.set("data", {
+      ...(obj.data || {}),
+      bindTo: el.bindTo,
+    });
+  }
+
+  c.add(obj);
+  continue;
+}
+
 
     if (el.type === "image") {
       const left = toPx(el.x, "x");

@@ -74,9 +74,14 @@ export default function TshirtCategoryVariant1() {
     <div>
       <Breadcrumb items={breadcrumbItems} />
 
-      <div>
-        <img src="/ss.png" alt="banner" />
-      </div>
+    <div className="w-full flex justify-center">
+  <img 
+    src="/ss.png" 
+    alt="banner"
+    className="w-full max-w-screen-2xl object-cover"
+  />
+</div>
+
 
       <section className="m-8">
 
