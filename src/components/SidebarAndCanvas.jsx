@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import TrashIcon from "./TrashIcon.jsx";
 import TextToolbar from "./TextToolbar.jsx";
+import EffectsPanel from "./EffectsPanel.jsx";
 
 const DESIGN_STORAGE_KEY = "myCardDesign_v1";
 
@@ -10,7 +11,6 @@ export default function SidebarAndCanvas(props) {
     FIELD_DEFS,
     data,
     setData,
-    runtimeEls,
     addNewTextField,
     deleteFieldByKey,
     deletedKeys,
@@ -24,8 +24,6 @@ export default function SidebarAndCanvas(props) {
     side,
     setSide,
     canvasRef,
-    showPreview,
-    setShowPreview,
     fabricRef,
     activeEdit,
     setActiveEdit,
@@ -34,159 +32,509 @@ export default function SidebarAndCanvas(props) {
   } = props;
 
   const [selectedObject, setSelectedObject] = useState(null);
-
-  // actual Fabric canvas instance (if already initialized)
   const fabricCanvas = fabricRef?.current || null;
 
-  // -----------------------
-  // 1) Selection handling
-  // -----------------------
+  // ---------------- EFFECTS PANEL ----------------
+  const [showEffectsPanel, setShowEffectsPanel] = useState(false);
+
+  // base shadow / echo controls
+  const [shadowEnabled, setShadowEnabled] = useState(true);
+  const [shadowColor, setShadowColor] = useState("#000000");
+  const [shadowDistance, setShadowDistance] = useState(26);
+  const [shadowOpacity, setShadowOpacity] = useState(0.4);
+  const [shadowAngle, setShadowAngle] = useState(35);
+  const [shadowBlur, setShadowBlur] = useState(10);
+
+  // style: none | shadow | echo | glitch
+  const [effectStyle, setEffectStyle] = useState("none");
+  const [echoSteps, setEchoSteps] = useState(4);
+
+  // shape: none | curve
+  const [shapeStyle, setShapeStyle] = useState("none");
+  const [curveAmount, setCurveAmount] = useState(80); // radius/intensity
+
+  const ensureData = (obj) => {
+    if (!obj) return;
+    if (!obj.data) obj.data = {};
+    if (!obj.data.effectClones) obj.data.effectClones = [];
+    if (!obj.data.shapeClones) obj.data.shapeClones = [];
+  };
+
+  const clearEffectClones = (obj) => {
+    if (!fabricCanvas || !obj || !obj.data) return;
+    const clones = obj.data.effectClones || [];
+    clones.forEach((c) => fabricCanvas.remove(c));
+    obj.data.effectClones = [];
+  };
+
+  const clearShapeClones = (obj) => {
+    if (!fabricCanvas || !obj || !obj.data) return;
+    const clones = obj.data.shapeClones || [];
+    clones.forEach((c) => fabricCanvas.remove(c));
+    obj.data.shapeClones = [];
+    if (obj.data.shapeStyle === "curve") {
+      obj.set({ opacity: 1 }); // show original straight text again
+    }
+    obj.data.shapeStyle = "none";
+  };
+
+  // ---------------- SHADOW SYNC (for simple shadow) ----------------
+  useEffect(() => {
+    if (!selectedObject) return;
+
+    const sh = selectedObject.shadow;
+    if (!sh) {
+      setShadowEnabled(false);
+      if (!selectedObject.data?.effectStyle) {
+        setEffectStyle("none");
+      }
+      return;
+    }
+
+    setShadowEnabled(true);
+    setShadowBlur(sh.blur ?? 10);
+
+    const ox = sh.offsetX || 0;
+    const oy = sh.offsetY || 0;
+    setShadowDistance(Math.sqrt(ox * ox + oy * oy));
+
+    const ang = Math.atan2(oy, ox) * (180 / Math.PI);
+    setShadowAngle(Math.round(ang));
+
+    const colorMatch = /rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(sh.color || "");
+    if (colorMatch) {
+      const r = Number(colorMatch[1]).toString(16).padStart(2, "0");
+      const g = Number(colorMatch[2]).toString(16).padStart(2, "0");
+      const b = Number(colorMatch[3]).toString(16).padStart(2, "0");
+      setShadowColor(`#${r}${g}${b}`);
+    } else if (sh.color?.startsWith("#")) {
+      setShadowColor(sh.color);
+    }
+
+    if (!selectedObject.data?.effectStyle) {
+      setEffectStyle("shadow");
+    }
+  }, [selectedObject]);
+
+  // ---------------- APPLY SHADOW ----------------
+  const applyShadowToSelected = (over = {}) => {
+    if (!fabricCanvas || !selectedObject) return;
+
+    const enabled =
+      over.enabled !== undefined ? over.enabled : shadowEnabled;
+
+    ensureData(selectedObject);
+
+    if (!enabled) {
+      selectedObject.set("shadow", null);
+      selectedObject.data.effectStyle = "none";
+      setEffectStyle("none");
+      fabricCanvas.requestRenderAll();
+      return;
+    }
+
+    const distance = over.distance ?? shadowDistance;
+    const opacity = over.opacity ?? shadowOpacity;
+    const angle = over.angle ?? shadowAngle;
+    const blur = over.blur ?? shadowBlur;
+    const colorHex = over.color ?? shadowColor;
+
+    const rad = (angle * Math.PI) / 180;
+    const offsetX = distance * Math.cos(rad);
+    const offsetY = distance * Math.sin(rad);
+
+    const hex = colorHex.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    selectedObject.set("shadow", {
+      color: `rgba(${r},${g},${b},${opacity})`,
+      blur,
+      offsetX,
+      offsetY,
+    });
+
+    selectedObject.data.effectStyle = "shadow";
+    clearEffectClones(selectedObject);
+
+    setEffectStyle("shadow");
+    fabricCanvas.requestRenderAll();
+  };
+
+  // ---------------- APPLY ECHO (multi-shadow) ----------------
+  const applyEchoEffectToSelected = (over = {}) => {
+    if (!fabricCanvas || !selectedObject) return;
+    if (!["text", "i-text", "textbox"].includes(selectedObject.type)) return;
+
+    ensureData(selectedObject);
+
+    const steps = over.steps ?? echoSteps;
+    const distance = over.distance ?? shadowDistance;
+    const opacity = over.opacity ?? shadowOpacity;
+    const angleDeg = over.angle ?? shadowAngle;
+    const blur = over.blur ?? shadowBlur;
+    const baseColor = over.color ?? shadowColor;
+
+    const angle = (angleDeg * Math.PI) / 180;
+
+    // remove real shadow + old clones
+    selectedObject.set("shadow", null);
+    clearEffectClones(selectedObject);
+
+    const baseLeft = selectedObject.left;
+    const baseTop = selectedObject.top;
+
+    const hex = baseColor.replace("#", "");
+    const r = parseInt(hex.substring(0, 2), 16);
+    const g = parseInt(hex.substring(2, 4), 16);
+    const b = parseInt(hex.substring(4, 6), 16);
+
+    for (let i = 1; i <= steps; i++) {
+      const offset = (distance / steps) * i;
+      const dx = Math.cos(angle) * offset;
+      const dy = Math.sin(angle) * offset;
+
+      selectedObject.clone((clone) => {
+        ensureData(clone);
+        clone.data.isEffectClone = true;
+        clone.data.dx = dx;
+        clone.data.dy = dy;
+
+        clone.set({
+          left: baseLeft + dx,
+          top: baseTop + dy,
+          selectable: false,
+          evented: false,
+          opacity: opacity * (1 - i / (steps + 1)),
+          fill: `rgba(${r},${g},${b},1)`,
+          shadow: {
+            color: `rgba(${r},${g},${b},${opacity})`,
+            blur,
+            offsetX: 0,
+            offsetY: 0,
+          },
+        });
+
+        fabricCanvas.add(clone);
+        clone.moveTo(fabricCanvas.getObjects().indexOf(selectedObject));
+        selectedObject.data.effectClones.push(clone);
+        fabricCanvas.requestRenderAll();
+      });
+    }
+
+    selectedObject.data.effectStyle = "echo";
+    setEffectStyle("echo");
+  };
+
+  // ---------------- APPLY GLITCH ----------------
+  const applyGlitchEffectToSelected = () => {
+    if (!fabricCanvas || !selectedObject) return;
+    if (!["text", "i-text", "textbox"].includes(selectedObject.type)) return;
+
+    ensureData(selectedObject);
+
+    // remove shadow + old clones
+    selectedObject.set("shadow", null);
+    clearEffectClones(selectedObject);
+
+    const baseLeft = selectedObject.left;
+    const baseTop = selectedObject.top;
+
+    const variations = [
+      { dx: -2, dy: -1, color: "#00ffff", opacity: 0.9 }, // cyan
+      { dx: 2, dy: 1, color: "#ff00ff", opacity: 0.9 }, // magenta
+      { dx: 1, dy: -2, color: "#ff5555", opacity: 0.7 }, // red
+    ];
+
+    variations.forEach((v) => {
+      selectedObject.clone((clone) => {
+        ensureData(clone);
+        clone.data.isEffectClone = true;
+        clone.data.dx = v.dx;
+        clone.data.dy = v.dy;
+
+        clone.set({
+          left: baseLeft + v.dx,
+          top: baseTop + v.dy,
+          fill: v.color,
+          opacity: v.opacity * shadowOpacity,
+          selectable: false,
+          evented: false,
+          shadow: null,
+        });
+
+        fabricCanvas.add(clone);
+        clone.moveTo(fabricCanvas.getObjects().indexOf(selectedObject));
+        selectedObject.data.effectClones.push(clone);
+        fabricCanvas.requestRenderAll();
+      });
+    });
+
+    selectedObject.data.effectStyle = "glitch";
+    setEffectStyle("glitch");
+  };
+
+  // ---------------- APPLY CURVE SHAPE ----------------
+  const applyCurveShapeToSelected = (over = {}) => {
+    if (!fabricCanvas || !selectedObject) return;
+    if (!["text", "i-text", "textbox"].includes(selectedObject.type)) return;
+
+    ensureData(selectedObject);
+
+    const text = selectedObject.text || "";
+    if (!text.length) return;
+
+    const radius = over.radius ?? curveAmount;
+
+    // clear old shape clones
+    clearShapeClones(selectedObject);
+
+    const baseLeft = selectedObject.left;
+    const baseTop = selectedObject.top;
+
+    // simple 180° arc
+    const angleSpan = Math.PI;
+    const count = text.length;
+    const denom = Math.max(1, count - 1);
+
+    for (let i = 0; i < count; i++) {
+      const ch = text[i];
+      const t = i / denom;
+      const angle = -angleSpan / 2 + angleSpan * t;
+
+      const dx = radius * Math.cos(angle);
+      const dy = radius * Math.sin(angle);
+
+      selectedObject.clone((clone) => {
+        ensureData(clone);
+        clone.data.isShapeClone = true;
+        clone.data.sdx = dx;
+        clone.data.sdy = dy;
+
+        clone.set({
+          text: ch,
+          left: baseLeft + dx,
+          top: baseTop + dy,
+          originX: "center",
+          originY: "center",
+          selectable: false,
+          evented: false,
+          angle: (angle * 180) / Math.PI + 90, // roughly tangent to the arc
+        });
+
+        selectedObject.data.shapeClones.push(clone);
+        fabricCanvas.add(clone);
+        clone.moveTo(fabricCanvas.getObjects().indexOf(selectedObject));
+        fabricCanvas.requestRenderAll();
+      });
+    }
+
+    // hide original straight text
+    selectedObject.set({ opacity: 0 });
+    selectedObject.data.shapeStyle = "curve";
+    setShapeStyle("curve");
+  };
+
+  // ---------------- SELECTION ----------------
   useEffect(() => {
     const canvas = fabricCanvas;
     if (!canvas) return;
 
-    const handleSelection = (e) => {
+    const handle = (e) => {
       const obj = e.selected?.[0] || null;
-      if (obj && ["text", "textbox", "i-text"].includes(obj.type)) {
-        setSelectedObject(obj);
+      const isText = obj && ["text", "i-text", "textbox"].includes(obj.type);
+      setSelectedObject(isText ? obj : null);
+
+      if (isText && obj.data?.effectStyle) {
+        setEffectStyle(obj.data.effectStyle);
+      } else if (isText && obj.shadow) {
+        setEffectStyle("shadow");
       } else {
-        setSelectedObject(null);
+        setEffectStyle("none");
+      }
+
+      if (isText && obj.data?.shapeStyle) {
+        setShapeStyle(obj.data.shapeStyle);
+      } else {
+        setShapeStyle("none");
       }
     };
 
-    const clearSelection = () => setSelectedObject(null);
+    const clear = () => {
+      setSelectedObject(null);
+      setEffectStyle("none");
+      setShapeStyle("none");
+    };
 
-    canvas.on("selection:created", handleSelection);
-    canvas.on("selection:updated", handleSelection);
-    canvas.on("selection:cleared", clearSelection);
+    canvas.on("selection:created", handle);
+    canvas.on("selection:updated", handle);
+    canvas.on("selection:cleared", clear);
 
     return () => {
-      canvas.off("selection:created", handleSelection);
-      canvas.off("selection:updated", handleSelection);
-      canvas.off("selection:cleared", clearSelection);
+      canvas.off("selection:created", handle);
+      canvas.off("selection:updated", handle);
+      canvas.off("selection:cleared", clear);
     };
   }, [fabricCanvas]);
 
+  // ---------------- KEEP CLONES IN SYNC WHEN MOVING / SCALING ----------------
   useEffect(() => {
-  const canvas = fabricRef.current;
-  if (!canvas) return;
-
-  canvas.getObjects().forEach((obj) => {
-    const bindTo = obj.data?.bindTo;
-    if (!bindTo) return;
-
-    if (typeof data?.[bindTo] === "string") {
-      obj.set("text", data[bindTo]);
-    }
-  });
-
-  canvas.requestRenderAll();
-}, [data, fabricRef]);
-
-  // -----------------------
-  // 2) Save design -> localStorage
-  // -----------------------
-  const saveDesign = useCallback(() => {
-    if (typeof window === "undefined") return;
-
-    const canvas = fabricRef.current;
-    if (!canvas) return;
-
-    try {
-      const canvasJSON = canvas.toJSON(["data", "bindTo"]);
-
-      const payload = {
-        canvasJSON,
-        data,
-        styleOverrides,
-        side,
-      };
-
-      window.localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(payload));
-      // console.log("Design autosaved");
-    } catch (err) {
-      console.error("Failed to save design", err);
-    }
-  }, [data, styleOverrides, side, fabricRef]);
-
-  // -----------------------
-  // 3) Auto-save on canvas changes (drag, resize, text styling)
-  // -----------------------
-  useEffect(() => {
-    if (typeof window === "undefined") return;
     const canvas = fabricCanvas;
     if (!canvas) return;
 
-    let timeoutId = null;
+    const syncClones = (e) => {
+      const obj = e.target;
+      if (!obj || !obj.data) return;
 
-    const handleChange = () => {
-      // debounce so we don't spam localStorage
-      clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => {
-        saveDesign();
-      }, 500);
+      if (obj.data.effectClones) {
+        obj.data.effectClones.forEach((clone) => {
+          const dx = clone.data?.dx || 0;
+          const dy = clone.data?.dy || 0;
+          clone.set({
+            left: obj.left + dx,
+            top: obj.top + dy,
+            angle: obj.angle,
+            scaleX: obj.scaleX,
+            scaleY: obj.scaleY,
+          });
+        });
+      }
+
+      if (obj.data.shapeClones) {
+        obj.data.shapeClones.forEach((clone) => {
+          const dx = clone.data?.sdx || 0;
+          const dy = clone.data?.sdy || 0;
+          clone.set({
+            left: obj.left + dx,
+            top: obj.top + dy,
+          });
+        });
+      }
+
+      canvas.requestRenderAll();
     };
 
-    // after:render fires whenever canvas re-renders
-    canvas.on("after:render", handleChange);
+    canvas.on("object:moving", syncClones);
+    canvas.on("object:scaling", syncClones);
+    canvas.on("object:rotating", syncClones);
 
     return () => {
-      canvas.off("after:render", handleChange);
-      clearTimeout(timeoutId);
+      canvas.off("object:moving", syncClones);
+      canvas.off("object:scaling", syncClones);
+      canvas.off("object:rotating", syncClones);
     };
-  }, [saveDesign, fabricCanvas]);
+  }, [fabricCanvas]);
 
-  // -----------------------
-  // 4) Also auto-save when form data / styleOverrides / side change
-  // -----------------------
+  // ---------------- SAVE DESIGN ----------------
+  const saveDesign = useCallback(() => {
+    const canvas = fabricCanvas;
+    if (!canvas) return;
+
+    const json = canvas.toJSON([
+      "data",
+      "bindTo",
+      "shadow",
+      "fontFamily",
+      "fontSize",
+      "fontWeight",
+      "fill",
+      "opacity",
+      "textAlign",
+    ]);
+
+    const payload = { canvasJSON: json, data, styleOverrides, side };
+    localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(payload));
+  }, [data, styleOverrides, side, fabricCanvas]);
+
   useEffect(() => {
     saveDesign();
   }, [data, styleOverrides, side, saveDesign]);
 
-  // -----------------------
-  // 5) Load saved design on mount
-  // -----------------------
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
     const canvas = fabricCanvas;
     if (!canvas) return;
 
-    const saved = window.localStorage.getItem(DESIGN_STORAGE_KEY);
+    const mod = () => saveDesign();
+    canvas.on("object:modified", mod);
+
+    return () => canvas.off("object:modified", mod);
+  }, [fabricCanvas, saveDesign]);
+
+  // --------------- LOAD DESIGN (ONLY ONCE) ---------------
+  useEffect(() => {
+    const canvas = fabricCanvas;
+    if (!canvas) return;
+
+    const saved = localStorage.getItem(DESIGN_STORAGE_KEY);
     if (!saved) return;
 
     try {
       const parsed = JSON.parse(saved);
-      const {
-        canvasJSON,
-        data: savedData,
-        styleOverrides: savedStyles,
-        side: savedSide,
-      } = parsed || {};
 
-      if (savedData) setData(savedData);
-      if (savedStyles) setStyleOverrides(savedStyles);
-      if (savedSide) setSide(savedSide);
+      if (parsed.data) setData(parsed.data);
+      if (parsed.styleOverrides) setStyleOverrides(parsed.styleOverrides);
+      if (parsed.side) setSide(parsed.side);
 
-      if (canvasJSON) {
-        canvas.loadFromJSON(canvasJSON, () => {
+      if (parsed.canvasJSON) {
+        canvas.loadFromJSON(parsed.canvasJSON, () => {
           canvas.renderAll();
         });
       }
     } catch (err) {
-      console.error("Failed to load saved design", err);
+      console.error("Load failed:", err);
     }
   }, [fabricCanvas, setData, setStyleOverrides, setSide]);
 
-  // --------------------------------
-  // UI RENDER
-  // --------------------------------
+  // ---------------- HANDLERS FOR EFFECTS PANEL ----------------
+  const handleSelectStyle = (style) => {
+    if (!selectedObject || !fabricCanvas) {
+      setEffectStyle(style);
+      return;
+    }
+
+    if (style === "none") {
+      ensureData(selectedObject);
+      selectedObject.set("shadow", null);
+      clearEffectClones(selectedObject);
+      selectedObject.data.effectStyle = "none";
+      setShadowEnabled(false);
+      setEffectStyle("none");
+      fabricCanvas.requestRenderAll();
+    } else if (style === "shadow") {
+      setEffectStyle("shadow");
+      setShadowEnabled(true);
+      applyShadowToSelected({ enabled: true });
+    } else if (style === "echo") {
+      setEffectStyle("echo");
+      applyEchoEffectToSelected();
+    } else if (style === "glitch") {
+      setEffectStyle("glitch");
+      applyGlitchEffectToSelected();
+    }
+  };
+
+  const handleSelectShape = (shape) => {
+    if (!selectedObject || !fabricCanvas) {
+      setShapeStyle(shape);
+      return;
+    }
+
+    if (shape === "none") {
+      clearShapeClones(selectedObject);
+      setShapeStyle("none");
+      fabricCanvas.requestRenderAll();
+    } else if (shape === "curve") {
+      applyCurveShapeToSelected();
+    }
+  };
+
+  // ---------------- UI ----------------
   return (
     <>
-      {/* BODY: sidebar + canvas */}
       <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* Sidebar */}
-        <aside className="border rounded-xl p-4 bg-white">
+        {/* SIDEBAR */}
+        <aside className="border rounded-xl p-4 bg-white shadow-sm hover:shadow-xl transition-all duration-200">
           <h3 className="font-semibold text-lg">Content</h3>
 
           {/* Toggles */}
@@ -197,7 +545,7 @@ export default function SidebarAndCanvas(props) {
                 checked={autoHideEmpty}
                 onChange={(e) => setAutoHideEmpty(e.target.checked)}
               />
-              Auto-hide empty fields
+              Auto-hide empty
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -205,7 +553,7 @@ export default function SidebarAndCanvas(props) {
                 checked={dragEnabled}
                 onChange={(e) => setDragEnabled(e.target.checked)}
               />
-              Enable drag/resize on canvas
+              Enable drag
             </label>
           </div>
 
@@ -215,38 +563,38 @@ export default function SidebarAndCanvas(props) {
 
               return (
                 <div key={key} className="space-y-1">
-                  {deleted ? null : type === "file" ? (
-                    <span className="text-xs text-gray-600 block">
-                      {label} (JPG/PNG/SVG)
-                    </span>
-                  ) : (
-                    <span className="sr-only">{label}</span>
-                  )}
-
                   {deleted ? (
-                    <div className="text-xs text-gray-500 border rounded px-3 py-2">
+                    <div className="text-xs text-gray-400 border rounded px-3 py-2">
                       {label} removed
                     </div>
                   ) : (
                     <>
+                      {type === "file" && (
+                        <span className="text-xs text-gray-600 block">
+                          {label} (Image file)
+                        </span>
+                      )}
+
                       <div className="relative">
                         {type === "file" ? (
                           <input
                             type="file"
                             accept="image/*"
-                            className="w-full border rounded px-3 py-2 pr-10"
+                            className="w-full border rounded px-3 py-2"
                             onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (!file) return;
-                              const url = URL.createObjectURL(file);
-                              setData((v) => ({ ...v, [key]: url }));
+                              const f = e.target.files?.[0];
+                              if (!f) return;
+                              setData((v) => ({
+                                ...v,
+                                [key]: URL.createObjectURL(f),
+                              }));
                             }}
                           />
                         ) : (
                           <input
                             type={type}
                             placeholder={label}
-                            className="w-full border rounded px-3 py-2 pr-10"
+                            className="w-full border rounded px-3 py-2"
                             value={data[key] ?? ""}
                             onChange={(e) =>
                               setData((v) => ({
@@ -257,12 +605,9 @@ export default function SidebarAndCanvas(props) {
                           />
                         )}
 
-                        {/* delete field button */}
                         <button
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 border rounded hover:bg-red-50 bg-white"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 border rounded bg-white hover:bg-red-50"
                           onClick={() => deleteFieldByKey(key)}
-                          title={`Delete ${label}`}
-                          aria-label={`Delete ${label}`}
                         >
                           <TrashIcon className="w-4 h-4 text-red-600" />
                         </button>
@@ -273,191 +618,159 @@ export default function SidebarAndCanvas(props) {
               );
             })}
 
-            {/* runtime custom fields (front side only) */}
-            {runtimeEls
-              .filter(
-                (e) =>
-                  e.type === "text" &&
-                  String(e.bindTo || "").startsWith("custom_")
-              )
-              .map((el) => {
-                const k = el.bindTo;
-                const deleted = deletedKeys.has(k);
-                return (
-                  <div key={k} className="relative">
-                    {!deleted && (
-                      <button
-                        className="absolute right-2 top-2 p-1 border rounded hover:bg-red-50 bg-white"
-                        onClick={() => deleteFieldByKey(k)}
-                        title="Delete this field"
-                        aria-label="Delete this field"
-                      >
-                        <TrashIcon className="w-4 h-4 text-red-600" />
-                      </button>
-                    )}
-
-                    {deleted ? (
-                      <div className="text-xs text-gray-500 border rounded px-3 py-2">
-                        Custom field removed
-                      </div>
-                    ) : (
-                      <>
-                        <input
-                          className="mt-1 w-full border rounded px-3 py-2 pr-8"
-                          value={data[k] ?? ""}
-                          onChange={(e) =>
-                            setData((v) => ({
-                              ...v,
-                              [k]: e.target.value,
-                            }))
-                          }
-                        />
-
-                        {/* font size slider for custom text */}
-                        <div className="mt-2 text-xs">
-                          <div className="flex items-center justify-between mb-1">
-                            <span>Font Size (optional)</span>
-                            <span className="opacity-60">
-                              {styleOverrides[k]?.fontSize ?? 16}px
-                            </span>
-                          </div>
-                          <input
-                            type="range"
-                            min={10}
-                            max={300}
-                            step={1}
-                            value={styleOverrides[k]?.fontSize ?? 16}
-                            onChange={(e) => {
-                              const val = Number(e.target.value);
-                              setStyleOverrides((prev) => ({
-                                ...prev,
-                                [k]: {
-                                  ...(prev[k] || {}),
-                                  fontSize: val,
-                                },
-                              }));
-                            }}
-                            className="w-full"
-                          />
-                        </div>
-                      </>
-                    )}
-                  </div>
-                );
-              })}
-
+            {/* Add field */}
             <button
               type="button"
-              className="w-full mt-1 py-2 rounded bg-black text-white"
-              onClick={addNewTextField}
+              className="w-full py-2 rounded bg-black text-white"
               disabled={side === "back"}
-              title={
-                side === "back"
-                  ? "Custom text fields are only added to the front for now"
-                  : undefined
-              }
+              onClick={addNewTextField}
             >
-              New Text Field
+              Add Text
             </button>
           </div>
         </aside>
 
-        {/* Canvas preview area */}
-      {/* Canvas preview area */}
-<section className="relative flex flex-col items-center justify-center">
-  {/* floating toolbar over the card */}
-  <div className="absolute -top-8 left-1/2 -translate-x-1/2 z-20">
-    <TextToolbar
-      canvas={fabricCanvas}
-      selectedObject={selectedObject}
-    />
-  </div>
-
-  {/* add margin-top so card sits under toolbar */}
-  <div
-    className="mt-10 rounded-xl border bg-white shadow-[0_20px_50px_rgba(0,0,0,0.06)] relative"
-    style={{
-      borderRadius: CARD.cornerRadiusPx
-        ? `${CARD.cornerRadiusPx}px`
-        : undefined,
-      overflow: CARD.cornerRadiusPx ? "hidden" : undefined,
-    }}
-  >
-    <canvas ref={canvasRef} width={CARD.w} height={CARD.h} />
-  </div>
-
-  <div className="text-center text-xs text-gray-500 mt-2">
-    {side === "front" ? "Front" : "Back"} • Standard {CARD.widthMM}×
-    {CARD.heightMM} mm preview (screen px)
-  </div>
-
-  <div className="mt-6 flex items-center justify-center gap-0 text-sm">
-    <button
-      type="button"
-      onClick={() => setSide("front")}
-      className={`px-4 py-3 border rounded-l-md focus:outline-none ${
-        side === "front"
-          ? "bg-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] ring-2 ring-blue-500"
-          : "bg-white border-gray-300 hover:ring-1 hover:ring-blue-300"
-      }`}
-      style={{ minWidth: "100px" }}
-    >
-      Front
-    </button>
-    <button
-      type="button"
-      onClick={() => setSide("back")}
-      className={`px-4 py-3 border rounded-r-md focus:outline-none ${
-        side === "back"
-          ? "bg-white shadow-[0_10px_30px_rgba(0,0,0,0.08)] ring-2 ring-blue-500"
-          : "bg-white border-gray-300 hover:ring-1 hover:ring-blue-300"
-      }`}
-      style={{ minWidth: "100px" }}
-    >
-      Back
-    </button>
-  </div>
-</section>
-
-      </div>
-
-      {/* Preview modal */}
-      {showPreview && (
-        <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
-          onClick={() => setShowPreview(false)}
-        >
-          <div
-            className="bg-white rounded-xl p-4 max-w-[95vw]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-3">
-              <h4 className="font-semibold">Preview ({side})</h4>
-              <button
-                className="px-3 py-1 border rounded"
-                onClick={() => setShowPreview(false)}
-              >
-                Close
-              </button>
-            </div>
-            <canvas
-              ref={(node) => {
-                if (!node || !fabricRef.current) return;
-                const src = fabricRef.current.toCanvasElement();
-                const ctx = node.getContext("2d");
-                node.width = src.width;
-                node.height = src.height;
-                ctx.drawImage(src, 0, 0);
-              }}
+        {/* CANVAS AREA */}
+        <section className="relative flex flex-col items-center justify-center">
+          {/* Toolbar */}
+          <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20">
+            <TextToolbar
+              canvas={fabricCanvas}
+              selectedObject={selectedObject}
+              onOpenEffects={() => setShowEffectsPanel(true)}
             />
           </div>
-        </div>
-      )}
 
-      {/* Inline edit bubble (dblclick on text in canvas) */}
+          {/* Canvas wrapper */}
+          <div
+            className="mt-10 rounded-xl border bg-white shadow-xl relative"
+            style={{
+              borderRadius: CARD.cornerRadiusPx
+                ? `${CARD.cornerRadiusPx}px`
+                : undefined,
+              overflow: CARD.cornerRadiusPx ? "hidden" : undefined,
+            }}
+          >
+            <canvas ref={canvasRef} width={CARD.w} height={CARD.h} />
+          </div>
+
+          <div className="text-xs text-gray-500 mt-2">
+            {side} • {CARD.widthMM}×{CARD.heightMM} mm preview
+          </div>
+
+          {/* Front/Back Switch */}
+          <div className="mt-6 flex gap-0 text-sm">
+            <button
+              onClick={() => setSide("front")}
+              className={`px-4 py-3 border rounded-l-md ${
+                side === "front"
+                  ? "ring-2 ring-blue-500 shadow-md"
+                  : "hover:ring-1 hover:ring-blue-400"
+              }`}
+            >
+              Front
+            </button>
+            <button
+              onClick={() => setSide("back")}
+              className={`px-4 py-3 border rounded-r-md ${
+                side === "back"
+                  ? "ring-2 ring-blue-500 shadow-md"
+                  : "hover:ring-1 hover:ring-blue-400"
+              }`}
+            >
+              Back
+            </button>
+          </div>
+
+          {/* EFFECTS SIDE PANEL (separate component) */}
+          <EffectsPanel
+            visible={showEffectsPanel && !!selectedObject}
+            onClose={() => setShowEffectsPanel(false)}
+            // style
+            effectStyle={effectStyle}
+            shadowEnabled={shadowEnabled}
+            shadowColor={shadowColor}
+            shadowDistance={shadowDistance}
+            shadowOpacity={shadowOpacity}
+            shadowAngle={shadowAngle}
+            shadowBlur={shadowBlur}
+            echoSteps={echoSteps}
+            // shape
+            shapeStyle={shapeStyle}
+            curveAmount={curveAmount}
+            // callbacks
+            onSelectStyle={handleSelectStyle}
+            onToggleShadow={(enabled) => {
+              setShadowEnabled(enabled);
+              if (effectStyle === "shadow") {
+                applyShadowToSelected({ enabled });
+              }
+            }}
+            onShadowColorChange={(color) => {
+              setShadowColor(color);
+              if (effectStyle === "shadow") {
+                applyShadowToSelected({ color });
+              } else if (effectStyle === "echo") {
+                applyEchoEffectToSelected({ color });
+              } else if (effectStyle === "glitch") {
+                applyGlitchEffectToSelected();
+              }
+            }}
+            onShadowDistanceChange={(v) => {
+              setShadowDistance(v);
+              if (effectStyle === "shadow") {
+                applyShadowToSelected({ distance: v });
+              } else if (effectStyle === "echo") {
+                applyEchoEffectToSelected({ distance: v });
+              }
+            }}
+            onShadowOpacityChange={(v) => {
+              setShadowOpacity(v);
+              if (effectStyle === "shadow") {
+                applyShadowToSelected({ opacity: v });
+              } else if (effectStyle === "echo") {
+                applyEchoEffectToSelected({ opacity: v });
+              } else if (effectStyle === "glitch") {
+                applyGlitchEffectToSelected();
+              }
+            }}
+            onShadowAngleChange={(v) => {
+              setShadowAngle(v);
+              if (effectStyle === "shadow") {
+                applyShadowToSelected({ angle: v });
+              } else if (effectStyle === "echo") {
+                applyEchoEffectToSelected({ angle: v });
+              }
+            }}
+            onShadowBlurChange={(v) => {
+              setShadowBlur(v);
+              if (effectStyle === "shadow") {
+                applyShadowToSelected({ blur: v });
+              } else if (effectStyle === "echo") {
+                applyEchoEffectToSelected({ blur: v });
+              }
+            }}
+            onEchoStepsChange={(v) => {
+              setEchoSteps(v);
+              if (effectStyle === "echo") {
+                applyEchoEffectToSelected({ steps: v });
+              }
+            }}
+            onSelectShape={handleSelectShape}
+            onCurveAmountChange={(v) => {
+              setCurveAmount(v);
+              if (shapeStyle === "curve") {
+                applyCurveShapeToSelected({ radius: v });
+              }
+            }}
+          />
+        </section>
+      </div>
+
+      {/* EDIT BUBBLE */}
       {activeEdit && (
         <div
-          className="fixed z-[9999] bg-white shadow-xl rounded-xl border border-gray-300 px-3 py-2 flex items-center gap-2"
+          className="fixed z-[9999] bg-white shadow-xl rounded-xl border px-3 py-2 flex items-center gap-2"
           style={{
             left: activeEdit.leftPx,
             top: activeEdit.topPx,
@@ -465,36 +778,30 @@ export default function SidebarAndCanvas(props) {
         >
           <input
             ref={editInputRef}
-            className="border border-gray-300 rounded px-3 py-2 text-sm min-w-[220px] outline-none"
+            className="border rounded px-3 py-2 text-sm"
             value={activeEdit.value}
             onChange={(e) => {
-              const newVal = e.target.value;
+              const val = e.target.value;
 
               setActiveEdit((prev) =>
-                prev
-                  ? {
-                      ...prev,
-                      value: newVal,
-                    }
-                  : prev
+                prev ? { ...prev, value: val } : prev
               );
 
-              const c = fabricRef.current;
+              const c = fabricCanvas;
               if (!c) return;
-              const target = c
+
+              const obj = c
                 .getObjects()
-                .find((o) => o.data && o.data.elId === activeEdit.elId);
-              if (target && target.type === "text") {
-                target.set("text", newVal);
+                .find((o) => o.data?.elId === activeEdit.elId);
+
+              if (obj && obj.type === "text") {
+                obj.set("text", val);
                 c.requestRenderAll();
               }
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                commitActiveEdit();
-              } else if (e.key === "Escape") {
-                setActiveEdit(null);
-              }
+              if (e.key === "Enter") commitActiveEdit();
+              if (e.key === "Escape") setActiveEdit(null);
             }}
           />
 
@@ -506,7 +813,7 @@ export default function SidebarAndCanvas(props) {
           </button>
 
           <button
-            className="text-xs border rounded px-2 py-1 bg-white text-gray-600"
+            className="text-xs border rounded px-2 py-1"
             onClick={() => setActiveEdit(null)}
           >
             ✕

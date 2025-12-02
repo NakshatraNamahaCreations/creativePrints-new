@@ -1,13 +1,12 @@
 // src/components/TextToolbar.jsx
 import React, { useEffect, useState } from "react";
-// nice alignment icons (very close to Vistaprint style)
 import {
   LuAlignLeft,
   LuAlignCenter,
   LuAlignRight,
   LuAlignJustify,
 } from "react-icons/lu";
-import { MdOpacity } from "react-icons/md"; // ✅ opacity icon
+import { MdOpacity } from "react-icons/md";
 
 const FONT_FAMILIES = [
   "Inter",
@@ -17,14 +16,13 @@ const FONT_FAMILIES = [
   "Roboto",
 ];
 
-export default function TextToolbar({ canvas, selectedObject }) {
+export default function TextToolbar({ canvas, selectedObject, onOpenEffects }) {
   const [fontFamily, setFontFamily] = useState("Inter");
   const [fontSize, setFontSize] = useState(12);
   const [color, setColor] = useState("#000000");
   const [bold, setBold] = useState(false);
   const [align, setAlign] = useState("left");
 
-  // opacity state (0–1) + popover toggle
   const [opacity, setOpacity] = useState(1);
   const [showOpacityPanel, setShowOpacityPanel] = useState(false);
 
@@ -52,11 +50,14 @@ export default function TextToolbar({ canvas, selectedObject }) {
     );
   }, [selectedObject]);
 
-  const updateText = (props) => {
-    if (!canvas || !selectedObject) return;
-    selectedObject.set(props);
-    canvas.requestRenderAll();
-  };
+const updateText = (props) => {
+  if (!canvas || !selectedObject) return;
+
+  selectedObject.set(props);
+  canvas.fire("object:modified"); // triggers autosave
+  canvas.requestRenderAll();
+};
+
 
   const handleFontChange = (e) => {
     const value = e.target.value;
@@ -84,10 +85,9 @@ export default function TextToolbar({ canvas, selectedObject }) {
 
   const setAlignment = (value) => {
     setAlign(value);
-    updateText({ textAlign: value }); // "left" | "center" | "right" | "justify"
+    updateText({ textAlign: value });
   };
 
-  // percent slider -> fabric opacity (0–1)
   const handleOpacityChange = (percentValue) => {
     const pct = Number(percentValue);
     const o = Math.min(1, Math.max(0, pct / 100));
@@ -262,7 +262,7 @@ export default function TextToolbar({ canvas, selectedObject }) {
         </IconButton>
       </div>
 
-      {/* OPACITY TRIGGER BUTTON (like Vistaprint icon) */}
+      {/* OPACITY TRIGGER BUTTON */}
       <button
         type="button"
         onClick={() => setShowOpacityPanel((v) => !v)}
@@ -282,7 +282,24 @@ export default function TextToolbar({ canvas, selectedObject }) {
         <MdOpacity size={18} />
       </button>
 
-      {/* OPACITY POPOVER PANEL */}
+      {/* EFFECTS BUTTON (opens side panel) */}
+      <button
+        type="button"
+        onClick={() => onOpenEffects && onOpenEffects()}
+        style={{
+          marginLeft: 4,
+          borderRadius: 9999,
+          border: "1px solid #e5e7eb",
+          padding: "6px 10px",
+          background: "#ffffff",
+          fontSize: 12,
+          cursor: "pointer",
+        }}
+      >
+        Effects
+      </button>
+
+      {/* OPACITY PANEL */}
       {showOpacityPanel && (
         <div
           style={{
@@ -315,7 +332,6 @@ export default function TextToolbar({ canvas, selectedObject }) {
               gap: 8,
             }}
           >
-            {/* Range 0–100 like Vistaprint */}
             <input
               type="range"
               min={0}
@@ -325,7 +341,6 @@ export default function TextToolbar({ canvas, selectedObject }) {
               style={{ flex: 1 }}
             />
 
-            {/* Reset button */}
             <button
               type="button"
               onClick={resetOpacity}
@@ -342,7 +357,6 @@ export default function TextToolbar({ canvas, selectedObject }) {
               ↺
             </button>
 
-            {/* Numeric input 0–100 */}
             <input
               type="number"
               min={0}
@@ -368,7 +382,6 @@ export default function TextToolbar({ canvas, selectedObject }) {
   );
 }
 
-// small helper for alignment buttons
 function IconButton({ active, onClick, title, children }) {
   return (
     <button
