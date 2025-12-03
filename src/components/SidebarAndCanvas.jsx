@@ -2,7 +2,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import TrashIcon from "./TrashIcon.jsx";
 import TextToolbar from "./TextToolbar.jsx";
-import EffectsPanel from "./EffectsPanel.jsx";
 
 const DESIGN_STORAGE_KEY = "myCardDesign_v1";
 
@@ -34,10 +33,13 @@ export default function SidebarAndCanvas(props) {
   const [selectedObject, setSelectedObject] = useState(null);
   const fabricCanvas = fabricRef?.current || null;
 
-  // ---------------- EFFECTS PANEL ----------------
-  const [showEffectsPanel, setShowEffectsPanel] = useState(false);
+  // -------- EFFECT STATE --------
+  // Highlight settings (VistaPrint-like)
+  const [highlightColor, setHighlightColor] = useState("#6FD0F5");
+  const [highlightRoundness, setHighlightRoundness] = useState(72);
+  const [highlightSize, setHighlightSize] = useState(43);
 
-  // base shadow / echo controls
+  // Shadow settings
   const [shadowEnabled, setShadowEnabled] = useState(true);
   const [shadowColor, setShadowColor] = useState("#000000");
   const [shadowDistance, setShadowDistance] = useState(26);
@@ -45,13 +47,13 @@ export default function SidebarAndCanvas(props) {
   const [shadowAngle, setShadowAngle] = useState(35);
   const [shadowBlur, setShadowBlur] = useState(10);
 
-  // style: none | shadow | echo | glitch
-  const [effectStyle, setEffectStyle] = useState("none");
-  const [echoSteps, setEchoSteps] = useState(4);
+  const echoSteps = 4;
+  const curveAmount = 80;
 
+  // style: none | shadow | echo | glitch | highlight
+  const [effectStyle, setEffectStyle] = useState("none");
   // shape: none | curve
   const [shapeStyle, setShapeStyle] = useState("none");
-  const [curveAmount, setCurveAmount] = useState(80); // radius/intensity
 
   const ensureData = (obj) => {
     if (!obj) return;
@@ -486,16 +488,19 @@ export default function SidebarAndCanvas(props) {
     }
   }, [fabricCanvas, setData, setStyleOverrides, setSide]);
 
-  // ---------------- HANDLERS FOR EFFECTS PANEL ----------------
+  // ---------------- HANDLERS FOR EFFECTS (from toolbar popup) ----------------
   const handleSelectStyle = (style) => {
     if (!selectedObject || !fabricCanvas) {
       setEffectStyle(style);
       return;
     }
 
+    ensureData(selectedObject);
+
     if (style === "none") {
-      ensureData(selectedObject);
       selectedObject.set("shadow", null);
+      selectedObject.set("backgroundColor", undefined);
+      selectedObject.set("padding", 0);
       clearEffectClones(selectedObject);
       selectedObject.data.effectStyle = "none";
       setShadowEnabled(false);
@@ -505,12 +510,38 @@ export default function SidebarAndCanvas(props) {
       setEffectStyle("shadow");
       setShadowEnabled(true);
       applyShadowToSelected({ enabled: true });
-    } else if (style === "echo") {
-      setEffectStyle("echo");
-      applyEchoEffectToSelected();
     } else if (style === "glitch") {
       setEffectStyle("glitch");
       applyGlitchEffectToSelected();
+    } else if (style === "echo") {
+      setEffectStyle("echo");
+      applyEchoEffectToSelected();
+    } else if (style === "highlight") {
+      // HIGHLIGHT STYLE: uses highlightColor / highlightSize
+      const hex = (highlightColor || "#6FD0F5").replace("#", "");
+      const r = parseInt(hex.substring(0, 2), 16);
+      const g = parseInt(hex.substring(2, 4), 16);
+      const b = parseInt(hex.substring(4, 6), 16);
+
+      selectedObject.set("shadow", null);
+      clearEffectClones(selectedObject);
+
+      // basic highlight using backgroundColor + padding
+      const fontSize = selectedObject.fontSize || 16;
+      const padding = (highlightSize / 100) * fontSize;
+
+      selectedObject.set({
+        backgroundColor: `rgba(${r},${g},${b},0.85)`,
+        padding,
+      });
+
+      ensureData(selectedObject);
+      selectedObject.data.effectStyle = "highlight";
+      selectedObject.data.highlightRoundness = highlightRoundness;
+      selectedObject.data.highlightSize = highlightSize;
+
+      setEffectStyle("highlight");
+      fabricCanvas.requestRenderAll();
     }
   };
 
@@ -634,11 +665,63 @@ export default function SidebarAndCanvas(props) {
         <section className="relative flex flex-col items-center justify-center">
           {/* Toolbar */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20">
-            <TextToolbar
-              canvas={fabricCanvas}
-              selectedObject={selectedObject}
-              onOpenEffects={() => setShowEffectsPanel(true)}
-            />
+           <TextToolbar
+  canvas={fabricCanvas}
+  selectedObject={selectedObject}
+  effectStyle={effectStyle}
+  shapeStyle={shapeStyle}
+  onSelectStyle={handleSelectStyle}
+  onSelectShape={handleSelectShape}
+  /* shadow props */
+  shadowColor={shadowColor}
+  shadowDistance={shadowDistance}
+  shadowOpacity={shadowOpacity}
+  shadowAngle={shadowAngle}
+  shadowBlur={shadowBlur}
+  onShadowColorChange={(color) => {
+    setShadowColor(color);
+    if (effectStyle === "shadow") applyShadowToSelected({ color });
+  }}
+  onShadowDistanceChange={(v) => {
+    setShadowDistance(v);
+    if (effectStyle === "shadow") applyShadowToSelected({ distance: v });
+  }}
+  onShadowOpacityChange={(v) => {
+    setShadowOpacity(v);
+    if (effectStyle === "shadow") applyShadowToSelected({ opacity: v });
+  }}
+  onShadowAngleChange={(v) => {
+    setShadowAngle(v);
+    if (effectStyle === "shadow") applyShadowToSelected({ angle: v });
+  }}
+  onShadowBlurChange={(v) => {
+    setShadowBlur(v);
+    if (effectStyle === "shadow") applyShadowToSelected({ blur: v });
+  }}
+
+  highlightColor={highlightColor}
+  highlightRoundness={highlightRoundness}
+  highlightSize={highlightSize}
+  onHighlightColorChange={(color) => {
+    setHighlightColor(color);
+    if (effectStyle === "highlight") {
+      handleSelectStyle("highlight"); // re-apply with new color
+    }
+  }}
+  onHighlightRoundnessChange={(v) => {
+    setHighlightRoundness(v);
+    if (effectStyle === "highlight") {
+      handleSelectStyle("highlight");
+    }
+  }}
+  onHighlightSizeChange={(v) => {
+    setHighlightSize(v);
+    if (effectStyle === "highlight") {
+      handleSelectStyle("highlight");
+    }
+  }}
+/>
+
           </div>
 
           {/* Canvas wrapper */}
@@ -681,89 +764,6 @@ export default function SidebarAndCanvas(props) {
               Back
             </button>
           </div>
-
-          {/* EFFECTS SIDE PANEL (separate component) */}
-          <EffectsPanel
-            visible={showEffectsPanel && !!selectedObject}
-            onClose={() => setShowEffectsPanel(false)}
-            // style
-            effectStyle={effectStyle}
-            shadowEnabled={shadowEnabled}
-            shadowColor={shadowColor}
-            shadowDistance={shadowDistance}
-            shadowOpacity={shadowOpacity}
-            shadowAngle={shadowAngle}
-            shadowBlur={shadowBlur}
-            echoSteps={echoSteps}
-            // shape
-            shapeStyle={shapeStyle}
-            curveAmount={curveAmount}
-            // callbacks
-            onSelectStyle={handleSelectStyle}
-            onToggleShadow={(enabled) => {
-              setShadowEnabled(enabled);
-              if (effectStyle === "shadow") {
-                applyShadowToSelected({ enabled });
-              }
-            }}
-            onShadowColorChange={(color) => {
-              setShadowColor(color);
-              if (effectStyle === "shadow") {
-                applyShadowToSelected({ color });
-              } else if (effectStyle === "echo") {
-                applyEchoEffectToSelected({ color });
-              } else if (effectStyle === "glitch") {
-                applyGlitchEffectToSelected();
-              }
-            }}
-            onShadowDistanceChange={(v) => {
-              setShadowDistance(v);
-              if (effectStyle === "shadow") {
-                applyShadowToSelected({ distance: v });
-              } else if (effectStyle === "echo") {
-                applyEchoEffectToSelected({ distance: v });
-              }
-            }}
-            onShadowOpacityChange={(v) => {
-              setShadowOpacity(v);
-              if (effectStyle === "shadow") {
-                applyShadowToSelected({ opacity: v });
-              } else if (effectStyle === "echo") {
-                applyEchoEffectToSelected({ opacity: v });
-              } else if (effectStyle === "glitch") {
-                applyGlitchEffectToSelected();
-              }
-            }}
-            onShadowAngleChange={(v) => {
-              setShadowAngle(v);
-              if (effectStyle === "shadow") {
-                applyShadowToSelected({ angle: v });
-              } else if (effectStyle === "echo") {
-                applyEchoEffectToSelected({ angle: v });
-              }
-            }}
-            onShadowBlurChange={(v) => {
-              setShadowBlur(v);
-              if (effectStyle === "shadow") {
-                applyShadowToSelected({ blur: v });
-              } else if (effectStyle === "echo") {
-                applyEchoEffectToSelected({ blur: v });
-              }
-            }}
-            onEchoStepsChange={(v) => {
-              setEchoSteps(v);
-              if (effectStyle === "echo") {
-                applyEchoEffectToSelected({ steps: v });
-              }
-            }}
-            onSelectShape={handleSelectShape}
-            onCurveAmountChange={(v) => {
-              setCurveAmount(v);
-              if (shapeStyle === "curve") {
-                applyCurveShapeToSelected({ radius: v });
-              }
-            }}
-          />
         </section>
       </div>
 

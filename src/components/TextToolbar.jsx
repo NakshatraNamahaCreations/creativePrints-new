@@ -7,6 +7,7 @@ import {
   LuAlignJustify,
 } from "react-icons/lu";
 import { MdOpacity } from "react-icons/md";
+import TextStylingPanel from "./TextStylingPanel.jsx";
 
 const FONT_FAMILIES = [
   "Inter",
@@ -16,7 +17,36 @@ const FONT_FAMILIES = [
   "Roboto",
 ];
 
-export default function TextToolbar({ canvas, selectedObject, onOpenEffects }) {
+export default function TextToolbar({
+  canvas,
+  selectedObject,
+  effectStyle,
+  shapeStyle,
+  onSelectStyle,
+  onSelectShape,
+
+  // shadow controls
+  shadowColor,
+  shadowDistance,
+  shadowOpacity,
+  shadowAngle,
+  shadowBlur,
+  onShadowColorChange,
+  onShadowDistanceChange,
+  onShadowOpacityChange,
+  onShadowAngleChange,
+  onShadowBlurChange,
+
+  // highlight controls
+  highlightColor,
+  highlightRoundness,
+  highlightSize,
+  highlightOpacity,
+  onHighlightColorChange,
+  onHighlightRoundnessChange,
+  onHighlightSizeChange,
+  onHighlightOpacityChange,
+}) {
   const [fontFamily, setFontFamily] = useState("Inter");
   const [fontSize, setFontSize] = useState(12);
   const [color, setColor] = useState("#000000");
@@ -25,6 +55,7 @@ export default function TextToolbar({ canvas, selectedObject, onOpenEffects }) {
 
   const [opacity, setOpacity] = useState(1);
   const [showOpacityPanel, setShowOpacityPanel] = useState(false);
+  const [showEffectsPanel, setShowEffectsPanel] = useState(false);
 
   // sync toolbar when selection changes
   useEffect(() => {
@@ -44,20 +75,16 @@ export default function TextToolbar({ canvas, selectedObject, onOpenEffects }) {
     setAlign(selectedObject.textAlign || "left");
 
     setOpacity(
-      typeof selectedObject.opacity === "number"
-        ? selectedObject.opacity
-        : 1
+      typeof selectedObject.opacity === "number" ? selectedObject.opacity : 1
     );
   }, [selectedObject]);
 
-const updateText = (props) => {
-  if (!canvas || !selectedObject) return;
-
-  selectedObject.set(props);
-  canvas.fire("object:modified"); // triggers autosave
-  canvas.requestRenderAll();
-};
-
+  const updateText = (props) => {
+    if (!canvas || !selectedObject) return;
+    selectedObject.set(props);
+    canvas.fire("object:modified");
+    canvas.requestRenderAll();
+  };
 
   const handleFontChange = (e) => {
     const value = e.target.value;
@@ -108,6 +135,14 @@ const updateText = (props) => {
   }
 
   const opacityPercent = Math.round(opacity * 100);
+
+  const handleStyleClick = (style) => {
+    onSelectStyle && onSelectStyle(style);
+  };
+
+  const handleShapeClick = (shape) => {
+    onSelectShape && onSelectShape(shape);
+  };
 
   return (
     <div
@@ -262,10 +297,13 @@ const updateText = (props) => {
         </IconButton>
       </div>
 
-      {/* OPACITY TRIGGER BUTTON */}
+      {/* OPACITY TRIGGER BUTTON (whole text) */}
       <button
         type="button"
-        onClick={() => setShowOpacityPanel((v) => !v)}
+        onClick={() => {
+          setShowOpacityPanel((v) => !v);
+          setShowEffectsPanel(false);
+        }}
         style={{
           marginLeft: 8,
           borderRadius: 9999,
@@ -282,10 +320,13 @@ const updateText = (props) => {
         <MdOpacity size={18} />
       </button>
 
-      {/* EFFECTS BUTTON (opens side panel) */}
+      {/* EFFECTS BUTTON */}
       <button
         type="button"
-        onClick={() => onOpenEffects && onOpenEffects()}
+        onClick={() => {
+          setShowEffectsPanel((v) => !v);
+          setShowOpacityPanel(false);
+        }}
         style={{
           marginLeft: 4,
           borderRadius: 9999,
@@ -377,6 +418,34 @@ const updateText = (props) => {
             />
           </div>
         </div>
+      )}
+
+      {/* EFFECTS PANEL POPUP (Shadow / Highlight / Echo / Glitch / Shape) */}
+      {showEffectsPanel && (
+        <TextStylingPanel
+          effectStyle={effectStyle}
+          shapeStyle={shapeStyle}
+          onSelectStyle={handleStyleClick}
+          onSelectShape={handleShapeClick}
+          shadowColor={shadowColor}
+          shadowDistance={shadowDistance}
+          shadowOpacity={shadowOpacity}
+          shadowAngle={shadowAngle}
+          shadowBlur={shadowBlur}
+          onShadowColorChange={onShadowColorChange}
+          onShadowDistanceChange={onShadowDistanceChange}
+          onShadowOpacityChange={onShadowOpacityChange}
+          onShadowAngleChange={onShadowAngleChange}
+          onShadowBlurChange={onShadowBlurChange}
+          highlightColor={highlightColor}
+          highlightRoundness={highlightRoundness}
+          highlightSize={highlightSize}
+          highlightOpacity={highlightOpacity}
+          onHighlightColorChange={onHighlightColorChange}
+          onHighlightRoundnessChange={onHighlightRoundnessChange}
+          onHighlightSizeChange={onHighlightSizeChange}
+          onHighlightOpacityChange={onHighlightOpacityChange}
+        />
       )}
     </div>
   );
