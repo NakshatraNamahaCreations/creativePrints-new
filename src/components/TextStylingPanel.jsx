@@ -28,11 +28,22 @@ export default function TextStylingPanel({
   onHighlightRoundnessChange,
   onHighlightSizeChange,
   onHighlightOpacityChange,
+   
+    glitchPreset,
+  glitchAngle,
+  glitchOffset,
+  onGlitchPresetChange,
+  onGlitchAngleChange,
+  onGlitchOffsetChange,
+
+    echoSteps,
+  onEchoStepsChange,
 }) {
   const shadowOpacityPercent = Math.round((shadowOpacity ?? 0) * 100);
-  const highlightOpacityPercent = Math.round(
-    (highlightOpacity ?? 0.85) * 100
-  );
+  const highlightOpacityPercent = Math.round((highlightOpacity ?? 0.85) * 100);
+
+  // 🔴 local list of glitch presets for the UI
+
 
   const handleStyleClick = (style) => {
     onSelectStyle && onSelectStyle(style);
@@ -49,19 +60,20 @@ export default function TextStylingPanel({
     onShadowBlurChange && onShadowBlurChange(10);
   };
 
+  
   return (
     <div
       style={{
         position: "absolute",
-        top: 52,
-        left: "-30%",
+        top: 40,
+        left: "-50%",
         transform: "translateX(-50%)",
         padding: 12,
         background: "#ffffff",
         borderRadius: 16,
         boxShadow: "0 18px 45px rgba(15,23,42,0.25)",
         border: "1px solid rgba(148,163,184,0.4)",
-        width: 280,
+        width: 350,
         zIndex: 9999,
       }}
     >
@@ -249,6 +261,106 @@ export default function TextStylingPanel({
             />
           </div>
         )}
+                {/* GLITCH SETTINGS */}
+        {effectStyle === "glitch" && (
+          <div className="mt-4 space-y-4 border-t pt-4">
+            {/* Preset bubbles */}
+            <div>
+              <div className="text-xs font-semibold mb-1">Preset</div>
+              <div className="flex gap-2">
+                {[
+                  { name: "cyan-magenta", colors: ["#00FFFF", "#FF00FF"], label: "cyan / magenta" },
+                  { name: "green-pink",   colors: ["#00FF00", "#FF00AA"], label: "green / pink" },
+                  { name: "blue-red",     colors: ["#0000FF", "#FF0000"], label: "blue / red" },
+                ].map((p) => (
+                  <button
+                    key={p.name}
+                    type="button"
+                    onClick={() =>
+                      onGlitchPresetChange && onGlitchPresetChange(p.name)
+                    }
+                    className={`w-8 h-8 rounded-full border flex items-center justify-center ${
+                      glitchPreset === p.name ? "ring-2 ring-black" : ""
+                    }`}
+                    style={{
+                      background: `linear-gradient(90deg, ${p.colors[0]}, ${p.colors[1]})`,
+                    }}
+                  />
+                ))}
+              </div>
+              <div className="text-[11px] text-gray-600 mt-1">
+                {glitchPreset.replace("-", " / ")}
+              </div>
+            </div>
+
+            {/* Angle slider */}
+            <ShadowSliderRow
+              label="Angle"
+              min={-180}
+              max={180}
+              value={glitchAngle}
+              onChange={(v) => onGlitchAngleChange && onGlitchAngleChange(v)}
+              onReset={() => onGlitchAngleChange && onGlitchAngleChange(180)}
+            />
+
+            {/* Offset slider */}
+            <ShadowSliderRow
+              label="Offset"
+              min={0}
+              max={50}
+              value={glitchOffset}
+              onChange={(v) => onGlitchOffsetChange && onGlitchOffsetChange(v)}
+              onReset={() => onGlitchOffsetChange && onGlitchOffsetChange(8)}
+            />
+          </div>
+        )}
+{/* ECHO SETTINGS */}
+{effectStyle === "echo" && (
+  <div className="mt-4 space-y-4 border-t pt-4">
+    {/* Distance */}
+    <ShadowSliderRow
+      label="Distance"
+      min={0}
+      max={100}
+      value={shadowDistance}
+      onChange={(v) =>
+        onShadowDistanceChange && onShadowDistanceChange(v)
+      }
+      onReset={() =>
+        onShadowDistanceChange && onShadowDistanceChange(8)
+      }
+    />
+
+    {/* Steps */}
+    <ShadowSliderRow
+      label="Steps"
+      min={1}
+      max={10}
+      value={echoSteps}
+      onChange={(v) =>
+        onEchoStepsChange && onEchoStepsChange(v)
+      }
+      onReset={() =>
+        onEchoStepsChange && onEchoStepsChange(3)
+      }
+    />
+
+    {/* Angle */}
+    <ShadowSliderRow
+      label="Angle"
+      min={-180}
+      max={180}
+      value={shadowAngle}
+      onChange={(v) =>
+        onShadowAngleChange && onShadowAngleChange(v)
+      }
+      onReset={() =>
+        onShadowAngleChange && onShadowAngleChange(45)
+      }
+    />
+  </div>
+)}
+
       </div>
 
       {/* SHAPE SECTION */}
@@ -461,25 +573,32 @@ function EffectIcon({ type }) {
 
   if (type === "shape-curve") {
     return (
-      <svg width={size} height={size} viewBox="0 0 40 40">
-        <path
-          d="M10 24 C16 14, 24 14, 30 24"
-          fill="none"
-          stroke="#111827"
-          strokeWidth="2"
-        />
-        <text
-          x="20"
-          y="20"
-          fontSize="8"
-          textAnchor="middle"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="700"
-          fill="#111827"
-        >
-          ABCD
-        </text>
-      </svg>
+    <svg width={200} height={80} viewBox="0 0 40 40">
+  {/* Define the curved path */}
+  <path
+    id="curvePath"
+    d="M10 26 C16 16, 24 16, 30 26"
+    stroke="#111827"
+    strokeWidth="1.5"
+    fill="none"
+    strokeLinecap="round"
+  />
+ 
+  {/* Text on the curve */}
+  <text
+    fontSize="9"
+    fontFamily="system-ui, sans-serif"
+    fontWeight="700"
+    letterSpacing="1"
+    fill="#111827"
+   dy="-3"
+  >
+    <textPath href="#curvePath" startOffset="50%" textAnchor="middle" >
+      ABCD
+    </textPath>
+  </text>
+</svg>
+
     );
   }
 

@@ -1,9 +1,20 @@
 // src/components/SidebarAndCanvas.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React from "react";
 import TrashIcon from "./TrashIcon.jsx";
 import TextToolbar from "./TextToolbar.jsx";
+import { useTextEffects } from "./useTextEffects.jsx";
 
-const DESIGN_STORAGE_KEY = "myCardDesign_v1";
+/* 🔹 IMPORT YOUR OWN ICONS HERE
+   Put SVG/PNG files in src/assets/icons/ and update paths as needed */
+// import iconProduct from "../assets/icons/product.webp";
+// import iconText from "../assets/icons/product.webp";
+// import iconUploads from "../assets/icons/product.webp";
+// import iconGraphics from "../assets/icons/product.webp";
+// import iconBackground from "../assets/icons/product.webp";
+// import iconTemplate from "../assets/icons/product.webp";
+// import iconTemplateColor from "../assets/icons/product.webp";
+// import iconQr from "../assets/icons/product.webp";
+// import iconTables from "../assets/icons/product.webp";
 
 export default function SidebarAndCanvas(props) {
   const {
@@ -30,698 +41,365 @@ export default function SidebarAndCanvas(props) {
     commitActiveEdit,
   } = props;
 
-  const [selectedObject, setSelectedObject] = useState(null);
-  const fabricCanvas = fabricRef?.current || null;
-
-  // -------- EFFECT STATE --------
-  // Highlight settings (VistaPrint-like)
-  const [highlightColor, setHighlightColor] = useState("#6FD0F5");
-  const [highlightRoundness, setHighlightRoundness] = useState(72);
-  const [highlightSize, setHighlightSize] = useState(43);
-
-  // Shadow settings
-  const [shadowEnabled, setShadowEnabled] = useState(true);
-  const [shadowColor, setShadowColor] = useState("#000000");
-  const [shadowDistance, setShadowDistance] = useState(26);
-  const [shadowOpacity, setShadowOpacity] = useState(0.4);
-  const [shadowAngle, setShadowAngle] = useState(35);
-  const [shadowBlur, setShadowBlur] = useState(10);
-
-  const echoSteps = 4;
-  const curveAmount = 80;
-
-  // style: none | shadow | echo | glitch | highlight
-  const [effectStyle, setEffectStyle] = useState("none");
-  // shape: none | curve
-  const [shapeStyle, setShapeStyle] = useState("none");
-
-  const ensureData = (obj) => {
-    if (!obj) return;
-    if (!obj.data) obj.data = {};
-    if (!obj.data.effectClones) obj.data.effectClones = [];
-    if (!obj.data.shapeClones) obj.data.shapeClones = [];
-  };
-
-  const clearEffectClones = (obj) => {
-    if (!fabricCanvas || !obj || !obj.data) return;
-    const clones = obj.data.effectClones || [];
-    clones.forEach((c) => fabricCanvas.remove(c));
-    obj.data.effectClones = [];
-  };
-
-  const clearShapeClones = (obj) => {
-    if (!fabricCanvas || !obj || !obj.data) return;
-    const clones = obj.data.shapeClones || [];
-    clones.forEach((c) => fabricCanvas.remove(c));
-    obj.data.shapeClones = [];
-    if (obj.data.shapeStyle === "curve") {
-      obj.set({ opacity: 1 }); // show original straight text again
-    }
-    obj.data.shapeStyle = "none";
-  };
-
-  // ---------------- SHADOW SYNC (for simple shadow) ----------------
-  useEffect(() => {
-    if (!selectedObject) return;
-
-    const sh = selectedObject.shadow;
-    if (!sh) {
-      setShadowEnabled(false);
-      if (!selectedObject.data?.effectStyle) {
-        setEffectStyle("none");
-      }
-      return;
-    }
-
-    setShadowEnabled(true);
-    setShadowBlur(sh.blur ?? 10);
-
-    const ox = sh.offsetX || 0;
-    const oy = sh.offsetY || 0;
-    setShadowDistance(Math.sqrt(ox * ox + oy * oy));
-
-    const ang = Math.atan2(oy, ox) * (180 / Math.PI);
-    setShadowAngle(Math.round(ang));
-
-    const colorMatch = /rgba?\((\d+),\s*(\d+),\s*(\d+)/i.exec(sh.color || "");
-    if (colorMatch) {
-      const r = Number(colorMatch[1]).toString(16).padStart(2, "0");
-      const g = Number(colorMatch[2]).toString(16).padStart(2, "0");
-      const b = Number(colorMatch[3]).toString(16).padStart(2, "0");
-      setShadowColor(`#${r}${g}${b}`);
-    } else if (sh.color?.startsWith("#")) {
-      setShadowColor(sh.color);
-    }
-
-    if (!selectedObject.data?.effectStyle) {
-      setEffectStyle("shadow");
-    }
-  }, [selectedObject]);
-
-  // ---------------- APPLY SHADOW ----------------
-  const applyShadowToSelected = (over = {}) => {
-    if (!fabricCanvas || !selectedObject) return;
-
-    const enabled =
-      over.enabled !== undefined ? over.enabled : shadowEnabled;
-
-    ensureData(selectedObject);
-
-    if (!enabled) {
-      selectedObject.set("shadow", null);
-      selectedObject.data.effectStyle = "none";
-      setEffectStyle("none");
-      fabricCanvas.requestRenderAll();
-      return;
-    }
-
-    const distance = over.distance ?? shadowDistance;
-    const opacity = over.opacity ?? shadowOpacity;
-    const angle = over.angle ?? shadowAngle;
-    const blur = over.blur ?? shadowBlur;
-    const colorHex = over.color ?? shadowColor;
-
-    const rad = (angle * Math.PI) / 180;
-    const offsetX = distance * Math.cos(rad);
-    const offsetY = distance * Math.sin(rad);
-
-    const hex = colorHex.replace("#", "");
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-
-    selectedObject.set("shadow", {
-      color: `rgba(${r},${g},${b},${opacity})`,
-      blur,
-      offsetX,
-      offsetY,
-    });
-
-    selectedObject.data.effectStyle = "shadow";
-    clearEffectClones(selectedObject);
-
-    setEffectStyle("shadow");
-    fabricCanvas.requestRenderAll();
-  };
-
-  // ---------------- APPLY ECHO (multi-shadow) ----------------
-  const applyEchoEffectToSelected = (over = {}) => {
-    if (!fabricCanvas || !selectedObject) return;
-    if (!["text", "i-text", "textbox"].includes(selectedObject.type)) return;
-
-    ensureData(selectedObject);
-
-    const steps = over.steps ?? echoSteps;
-    const distance = over.distance ?? shadowDistance;
-    const opacity = over.opacity ?? shadowOpacity;
-    const angleDeg = over.angle ?? shadowAngle;
-    const blur = over.blur ?? shadowBlur;
-    const baseColor = over.color ?? shadowColor;
-
-    const angle = (angleDeg * Math.PI) / 180;
-
-    // remove real shadow + old clones
-    selectedObject.set("shadow", null);
-    clearEffectClones(selectedObject);
-
-    const baseLeft = selectedObject.left;
-    const baseTop = selectedObject.top;
-
-    const hex = baseColor.replace("#", "");
-    const r = parseInt(hex.substring(0, 2), 16);
-    const g = parseInt(hex.substring(2, 4), 16);
-    const b = parseInt(hex.substring(4, 6), 16);
-
-    for (let i = 1; i <= steps; i++) {
-      const offset = (distance / steps) * i;
-      const dx = Math.cos(angle) * offset;
-      const dy = Math.sin(angle) * offset;
-
-      selectedObject.clone((clone) => {
-        ensureData(clone);
-        clone.data.isEffectClone = true;
-        clone.data.dx = dx;
-        clone.data.dy = dy;
-
-        clone.set({
-          left: baseLeft + dx,
-          top: baseTop + dy,
-          selectable: false,
-          evented: false,
-          opacity: opacity * (1 - i / (steps + 1)),
-          fill: `rgba(${r},${g},${b},1)`,
-          shadow: {
-            color: `rgba(${r},${g},${b},${opacity})`,
-            blur,
-            offsetX: 0,
-            offsetY: 0,
-          },
-        });
-
-        fabricCanvas.add(clone);
-        clone.moveTo(fabricCanvas.getObjects().indexOf(selectedObject));
-        selectedObject.data.effectClones.push(clone);
-        fabricCanvas.requestRenderAll();
-      });
-    }
-
-    selectedObject.data.effectStyle = "echo";
-    setEffectStyle("echo");
-  };
-
-  // ---------------- APPLY GLITCH ----------------
-  const applyGlitchEffectToSelected = () => {
-    if (!fabricCanvas || !selectedObject) return;
-    if (!["text", "i-text", "textbox"].includes(selectedObject.type)) return;
-
-    ensureData(selectedObject);
-
-    // remove shadow + old clones
-    selectedObject.set("shadow", null);
-    clearEffectClones(selectedObject);
-
-    const baseLeft = selectedObject.left;
-    const baseTop = selectedObject.top;
-
-    const variations = [
-      { dx: -2, dy: -1, color: "#00ffff", opacity: 0.9 }, // cyan
-      { dx: 2, dy: 1, color: "#ff00ff", opacity: 0.9 }, // magenta
-      { dx: 1, dy: -2, color: "#ff5555", opacity: 0.7 }, // red
-    ];
-
-    variations.forEach((v) => {
-      selectedObject.clone((clone) => {
-        ensureData(clone);
-        clone.data.isEffectClone = true;
-        clone.data.dx = v.dx;
-        clone.data.dy = v.dy;
-
-        clone.set({
-          left: baseLeft + v.dx,
-          top: baseTop + v.dy,
-          fill: v.color,
-          opacity: v.opacity * shadowOpacity,
-          selectable: false,
-          evented: false,
-          shadow: null,
-        });
-
-        fabricCanvas.add(clone);
-        clone.moveTo(fabricCanvas.getObjects().indexOf(selectedObject));
-        selectedObject.data.effectClones.push(clone);
-        fabricCanvas.requestRenderAll();
-      });
-    });
-
-    selectedObject.data.effectStyle = "glitch";
-    setEffectStyle("glitch");
-  };
-
-  // ---------------- APPLY CURVE SHAPE ----------------
-  const applyCurveShapeToSelected = (over = {}) => {
-    if (!fabricCanvas || !selectedObject) return;
-    if (!["text", "i-text", "textbox"].includes(selectedObject.type)) return;
-
-    ensureData(selectedObject);
-
-    const text = selectedObject.text || "";
-    if (!text.length) return;
-
-    const radius = over.radius ?? curveAmount;
-
-    // clear old shape clones
-    clearShapeClones(selectedObject);
-
-    const baseLeft = selectedObject.left;
-    const baseTop = selectedObject.top;
-
-    // simple 180° arc
-    const angleSpan = Math.PI;
-    const count = text.length;
-    const denom = Math.max(1, count - 1);
-
-    for (let i = 0; i < count; i++) {
-      const ch = text[i];
-      const t = i / denom;
-      const angle = -angleSpan / 2 + angleSpan * t;
-
-      const dx = radius * Math.cos(angle);
-      const dy = radius * Math.sin(angle);
-
-      selectedObject.clone((clone) => {
-        ensureData(clone);
-        clone.data.isShapeClone = true;
-        clone.data.sdx = dx;
-        clone.data.sdy = dy;
-
-        clone.set({
-          text: ch,
-          left: baseLeft + dx,
-          top: baseTop + dy,
-          originX: "center",
-          originY: "center",
-          selectable: false,
-          evented: false,
-          angle: (angle * 180) / Math.PI + 90, // roughly tangent to the arc
-        });
-
-        selectedObject.data.shapeClones.push(clone);
-        fabricCanvas.add(clone);
-        clone.moveTo(fabricCanvas.getObjects().indexOf(selectedObject));
-        fabricCanvas.requestRenderAll();
-      });
-    }
-
-    // hide original straight text
-    selectedObject.set({ opacity: 0 });
-    selectedObject.data.shapeStyle = "curve";
-    setShapeStyle("curve");
-  };
-
-  // ---------------- SELECTION ----------------
-  useEffect(() => {
-    const canvas = fabricCanvas;
-    if (!canvas) return;
-
-    const handle = (e) => {
-      const obj = e.selected?.[0] || null;
-      const isText = obj && ["text", "i-text", "textbox"].includes(obj.type);
-      setSelectedObject(isText ? obj : null);
-
-      if (isText && obj.data?.effectStyle) {
-        setEffectStyle(obj.data.effectStyle);
-      } else if (isText && obj.shadow) {
-        setEffectStyle("shadow");
-      } else {
-        setEffectStyle("none");
-      }
-
-      if (isText && obj.data?.shapeStyle) {
-        setShapeStyle(obj.data.shapeStyle);
-      } else {
-        setShapeStyle("none");
-      }
-    };
-
-    const clear = () => {
-      setSelectedObject(null);
-      setEffectStyle("none");
-      setShapeStyle("none");
-    };
-
-    canvas.on("selection:created", handle);
-    canvas.on("selection:updated", handle);
-    canvas.on("selection:cleared", clear);
-
-    return () => {
-      canvas.off("selection:created", handle);
-      canvas.off("selection:updated", handle);
-      canvas.off("selection:cleared", clear);
-    };
-  }, [fabricCanvas]);
-
-  // ---------------- KEEP CLONES IN SYNC WHEN MOVING / SCALING ----------------
-  useEffect(() => {
-    const canvas = fabricCanvas;
-    if (!canvas) return;
-
-    const syncClones = (e) => {
-      const obj = e.target;
-      if (!obj || !obj.data) return;
-
-      if (obj.data.effectClones) {
-        obj.data.effectClones.forEach((clone) => {
-          const dx = clone.data?.dx || 0;
-          const dy = clone.data?.dy || 0;
-          clone.set({
-            left: obj.left + dx,
-            top: obj.top + dy,
-            angle: obj.angle,
-            scaleX: obj.scaleX,
-            scaleY: obj.scaleY,
-          });
-        });
-      }
-
-      if (obj.data.shapeClones) {
-        obj.data.shapeClones.forEach((clone) => {
-          const dx = clone.data?.sdx || 0;
-          const dy = clone.data?.sdy || 0;
-          clone.set({
-            left: obj.left + dx,
-            top: obj.top + dy,
-          });
-        });
-      }
-
-      canvas.requestRenderAll();
-    };
-
-    canvas.on("object:moving", syncClones);
-    canvas.on("object:scaling", syncClones);
-    canvas.on("object:rotating", syncClones);
-
-    return () => {
-      canvas.off("object:moving", syncClones);
-      canvas.off("object:scaling", syncClones);
-      canvas.off("object:rotating", syncClones);
-    };
-  }, [fabricCanvas]);
-
-  // ---------------- SAVE DESIGN ----------------
-  const saveDesign = useCallback(() => {
-    const canvas = fabricCanvas;
-    if (!canvas) return;
-
-    const json = canvas.toJSON([
-      "data",
-      "bindTo",
-      "shadow",
-      "fontFamily",
-      "fontSize",
-      "fontWeight",
-      "fill",
-      "opacity",
-      "textAlign",
-    ]);
-
-    const payload = { canvasJSON: json, data, styleOverrides, side };
-    localStorage.setItem(DESIGN_STORAGE_KEY, JSON.stringify(payload));
-  }, [data, styleOverrides, side, fabricCanvas]);
-
-  useEffect(() => {
-    saveDesign();
-  }, [data, styleOverrides, side, saveDesign]);
-
-  useEffect(() => {
-    const canvas = fabricCanvas;
-    if (!canvas) return;
-
-    const mod = () => saveDesign();
-    canvas.on("object:modified", mod);
-
-    return () => canvas.off("object:modified", mod);
-  }, [fabricCanvas, saveDesign]);
-
-  // --------------- LOAD DESIGN (ONLY ONCE) ---------------
-  useEffect(() => {
-    const canvas = fabricCanvas;
-    if (!canvas) return;
-
-    const saved = localStorage.getItem(DESIGN_STORAGE_KEY);
-    if (!saved) return;
-
-    try {
-      const parsed = JSON.parse(saved);
-
-      if (parsed.data) setData(parsed.data);
-      if (parsed.styleOverrides) setStyleOverrides(parsed.styleOverrides);
-      if (parsed.side) setSide(parsed.side);
-
-      if (parsed.canvasJSON) {
-        canvas.loadFromJSON(parsed.canvasJSON, () => {
-          canvas.renderAll();
-        });
-      }
-    } catch (err) {
-      console.error("Load failed:", err);
-    }
-  }, [fabricCanvas, setData, setStyleOverrides, setSide]);
-
-  // ---------------- HANDLERS FOR EFFECTS (from toolbar popup) ----------------
-  const handleSelectStyle = (style) => {
-    if (!selectedObject || !fabricCanvas) {
-      setEffectStyle(style);
-      return;
-    }
-
-    ensureData(selectedObject);
-
-    if (style === "none") {
-      selectedObject.set("shadow", null);
-      selectedObject.set("backgroundColor", undefined);
-      selectedObject.set("padding", 0);
-      clearEffectClones(selectedObject);
-      selectedObject.data.effectStyle = "none";
-      setShadowEnabled(false);
-      setEffectStyle("none");
-      fabricCanvas.requestRenderAll();
-    } else if (style === "shadow") {
-      setEffectStyle("shadow");
-      setShadowEnabled(true);
-      applyShadowToSelected({ enabled: true });
-    } else if (style === "glitch") {
-      setEffectStyle("glitch");
-      applyGlitchEffectToSelected();
-    } else if (style === "echo") {
-      setEffectStyle("echo");
-      applyEchoEffectToSelected();
-    } else if (style === "highlight") {
-      // HIGHLIGHT STYLE: uses highlightColor / highlightSize
-      const hex = (highlightColor || "#6FD0F5").replace("#", "");
-      const r = parseInt(hex.substring(0, 2), 16);
-      const g = parseInt(hex.substring(2, 4), 16);
-      const b = parseInt(hex.substring(4, 6), 16);
-
-      selectedObject.set("shadow", null);
-      clearEffectClones(selectedObject);
-
-      // basic highlight using backgroundColor + padding
-      const fontSize = selectedObject.fontSize || 16;
-      const padding = (highlightSize / 100) * fontSize;
-
-      selectedObject.set({
-        backgroundColor: `rgba(${r},${g},${b},0.85)`,
-        padding,
-      });
-
-      ensureData(selectedObject);
-      selectedObject.data.effectStyle = "highlight";
-      selectedObject.data.highlightRoundness = highlightRoundness;
-      selectedObject.data.highlightSize = highlightSize;
-
-      setEffectStyle("highlight");
-      fabricCanvas.requestRenderAll();
-    }
-  };
-
-  const handleSelectShape = (shape) => {
-    if (!selectedObject || !fabricCanvas) {
-      setShapeStyle(shape);
-      return;
-    }
-
-    if (shape === "none") {
-      clearShapeClones(selectedObject);
-      setShapeStyle("none");
-      fabricCanvas.requestRenderAll();
-    } else if (shape === "curve") {
-      applyCurveShapeToSelected();
-    }
-  };
+  // which left toolbar tab is active
+  const [activeTool, setActiveTool] = React.useState("text");
+
+  // all the text / effect logic lives in the hook
+  const {
+    fabricCanvas,
+    selectedObject,
+    effectStyle,
+    shapeStyle,
+
+    // state
+    shadowColor,
+    shadowDistance,
+    shadowOpacity,
+    shadowAngle,
+    shadowBlur,
+
+    highlightColor,
+    highlightRoundness,
+    highlightSize,
+  
+
+    glitchPreset,
+    glitchAngle,
+    glitchOffset,
+
+    echoSteps,
+
+    curveAmount,
+    curveSpacing,
+
+    // setters
+    setShadowColor,
+    setShadowDistance,
+    setShadowOpacity,
+    setShadowAngle,
+    setShadowBlur,
+
+    setHighlightColor,
+    setHighlightRoundness,
+    setHighlightSize,
+
+
+    setGlitchPreset,
+    setGlitchAngle,
+    setGlitchOffset,
+
+    setEchoSteps,
+    setCurveAmount,
+    setCurveSpacing,
+
+    // actions
+    handleSelectStyle,
+    handleSelectShape,
+    applyShadowToSelected,
+    applyEchoEffectToSelected,
+    applyGlitchEffectToSelected,
+    applyCurveShapeToSelected,
+  } = useTextEffects({
+    fabricRef,
+    data,
+    setData,
+    styleOverrides,
+    setStyleOverrides,
+    side,
+    setSide,
+  });
+
+  // left toolbar buttons (now with image icons)
+  const LEFT_TOOLS = [
+    { id: "product", label: "Product options", icon: "/products/equalizer.png" },
+    { id: "text", label: "Text", icon:"/products/text.png" },
+    { id: "uploads", label: "Uploads", icon: "/products/image-.png"  },
+    { id: "graphics", label: "Graphics", icon: "/products/shapes.png"  },
+    { id: "background", label: "Background", icon: "/products/background.png"  },
+    { id: "template", label: "Template", icon: "/products/layout.png"  },
+    { id: "templateColor", label: "Template color", icon: "/products/paint-bucket.png"  },
+    { id: "qrcode", label: "QR-codes", icon: "/products/qr-code.png" },
+    { id: "tables", label: "Tables", icon: "/products/grid.png" },
+  ];
 
   // ---------------- UI ----------------
   return (
     <>
-      <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-6">
-        {/* SIDEBAR */}
+      <div className="grid grid-cols-1 lg:grid-cols-[72px_360px_1fr] gap-6">
+        {/* LEFT VISTAPRINT-STYLE TOOLBAR */}
+        <nav className="hidden lg:flex flex-col bg-white rounded-xl shadow-sm border py-2">
+          {LEFT_TOOLS.map((tool) => {
+            const isActive = activeTool === tool.id;
+            return (
+              <button
+                key={tool.id}
+                type="button"
+                className={
+                  "flex flex-col items-center justify-center px-2 py-3 text-[11px] border-l-4 transition-colors " +
+                  (isActive
+                    ? "border-blue-600 bg-blue-50 font-semibold text-blue-700"
+                    : "border-transparent hover:bg-gray-50 text-gray-600")
+                }
+                onClick={() => setActiveTool(tool.id)}
+              >
+                {/* 🔹 REAL IMAGE ICON INSTEAD OF LETTER */}
+                <span
+                  className={
+                    " h-8 w-8 rounded-lg flex items-center justify-center " +
+                    (isActive ? "bg-sky-200" : "")
+                  }
+                >
+                  <img
+                    src={tool.icon}
+                    alt={tool.label}
+                    className="h-8 w-8 object-contain"
+                  />
+                </span>
+                <span className="leading-tight text-center" style={{fontSize:"12px"}}>
+                  {tool.label}
+                </span>
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* MIDDLE PANEL – changes per activeTool */}
         <aside className="border rounded-xl p-4 bg-white shadow-sm hover:shadow-xl transition-all duration-200">
-          <h3 className="font-semibold text-lg">Content</h3>
+          {activeTool === "text" && (
+            <>
+              <h3 className="font-semibold text-lg mb-2">Text</h3>
 
-          {/* Toggles */}
-          <div className="flex items-center gap-4 mt-2 mb-3 text-sm flex-wrap">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={autoHideEmpty}
-                onChange={(e) => setAutoHideEmpty(e.target.checked)}
-              />
-              Auto-hide empty
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={dragEnabled}
-                onChange={(e) => setDragEnabled(e.target.checked)}
-              />
-              Enable drag
-            </label>
-          </div>
+              {/* Toggles */}
+              <div className="flex items-center gap-4 mt-2 mb-3 text-sm flex-wrap">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={autoHideEmpty}
+                    onChange={(e) => setAutoHideEmpty(e.target.checked)}
+                  />
+                  Auto-hide empty
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={dragEnabled}
+                    onChange={(e) => setDragEnabled(e.target.checked)}
+                  />
+                  Enable drag
+                </label>
+              </div>
 
-          <div className="space-y-4">
-            {FIELD_DEFS.map(([label, key, type]) => {
-              const deleted = deletedKeys.has(key);
+              <div className="space-y-4">
+                {FIELD_DEFS.map(([label, key, type]) => {
+                  const deleted = deletedKeys.has(key);
 
-              return (
-                <div key={key} className="space-y-1">
-                  {deleted ? (
-                    <div className="text-xs text-gray-400 border rounded px-3 py-2">
-                      {label} removed
-                    </div>
-                  ) : (
-                    <>
-                      {type === "file" && (
-                        <span className="text-xs text-gray-600 block">
-                          {label} (Image file)
-                        </span>
+                  return (
+                    <div key={key} className="space-y-1">
+                      {deleted ? (
+                        <div className="text-xs text-gray-400 border rounded px-3 py-2">
+                          {label} removed
+                        </div>
+                      ) : (
+                        <>
+                          {type === "file" && (
+                            <span className="text-xs text-gray-600 block">
+                              {label} (Image file)
+                            </span>
+                          )}
+
+                          <div className="relative">
+                            {type === "file" ? (
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="w-full border rounded px-3 py-2"
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0];
+                                  if (!f) return;
+                                  setData((v) => ({
+                                    ...v,
+                                    [key]: URL.createObjectURL(f),
+                                  }));
+                                }}
+                              />
+                            ) : (
+                              <input
+                                type={type}
+                                placeholder={label}
+                                className="w-full border rounded px-3 py-2"
+                                value={data[key] ?? ""}
+                                onChange={(e) =>
+                                  setData((v) => ({
+                                    ...v,
+                                    [key]: e.target.value,
+                                  }))
+                                }
+                              />
+                            )}
+
+                            <button
+                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 border rounded bg-white hover:bg-red-50"
+                              onClick={() => deleteFieldByKey(key)}
+                            >
+                              <TrashIcon className="w-4 h-4 text-red-600" />
+                            </button>
+                          </div>
+                        </>
                       )}
+                    </div>
+                  );
+                })}
 
-                      <div className="relative">
-                        {type === "file" ? (
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="w-full border rounded px-3 py-2"
-                            onChange={(e) => {
-                              const f = e.target.files?.[0];
-                              if (!f) return;
-                              setData((v) => ({
-                                ...v,
-                                [key]: URL.createObjectURL(f),
-                              }));
-                            }}
-                          />
-                        ) : (
-                          <input
-                            type={type}
-                            placeholder={label}
-                            className="w-full border rounded px-3 py-2"
-                            value={data[key] ?? ""}
-                            onChange={(e) =>
-                              setData((v) => ({
-                                ...v,
-                                [key]: e.target.value,
-                              }))
-                            }
-                          />
-                        )}
+                {/* Add field */}
+                <button
+                  type="button"
+                  className="w-full py-2 rounded bg-black text-white"
+                  disabled={side === "back"}
+                  onClick={addNewTextField}
+                >
+                  Add Text
+                </button>
+              </div>
+            </>
+          )}
 
-                        <button
-                          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 border rounded bg-white hover:bg-red-50"
-                          onClick={() => deleteFieldByKey(key)}
-                        >
-                          <TrashIcon className="w-4 h-4 text-red-600" />
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* Add field */}
-            <button
-              type="button"
-              className="w-full py-2 rounded bg-black text-white"
-              disabled={side === "back"}
-              onClick={addNewTextField}
-            >
-              Add Text
-            </button>
-          </div>
+          {activeTool !== "text" && (
+            <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500">
+              <p className="mb-1 font-semibold">
+                {LEFT_TOOLS.find((t) => t.id === activeTool)?.label}
+              </p>
+              <p>Panel coming soon – only Text is active for now.</p>
+            </div>
+          )}
         </aside>
 
         {/* CANVAS AREA */}
         <section className="relative flex flex-col items-center justify-center">
-          {/* Toolbar */}
+          {/* Toolbar floating above canvas */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20">
-           <TextToolbar
-  canvas={fabricCanvas}
-  selectedObject={selectedObject}
-  effectStyle={effectStyle}
-  shapeStyle={shapeStyle}
-  onSelectStyle={handleSelectStyle}
-  onSelectShape={handleSelectShape}
-  /* shadow props */
-  shadowColor={shadowColor}
-  shadowDistance={shadowDistance}
-  shadowOpacity={shadowOpacity}
-  shadowAngle={shadowAngle}
-  shadowBlur={shadowBlur}
-  onShadowColorChange={(color) => {
-    setShadowColor(color);
-    if (effectStyle === "shadow") applyShadowToSelected({ color });
-  }}
-  onShadowDistanceChange={(v) => {
-    setShadowDistance(v);
-    if (effectStyle === "shadow") applyShadowToSelected({ distance: v });
-  }}
-  onShadowOpacityChange={(v) => {
-    setShadowOpacity(v);
-    if (effectStyle === "shadow") applyShadowToSelected({ opacity: v });
-  }}
-  onShadowAngleChange={(v) => {
-    setShadowAngle(v);
-    if (effectStyle === "shadow") applyShadowToSelected({ angle: v });
-  }}
-  onShadowBlurChange={(v) => {
-    setShadowBlur(v);
-    if (effectStyle === "shadow") applyShadowToSelected({ blur: v });
-  }}
+            <TextToolbar
+              canvas={fabricCanvas}
+              selectedObject={selectedObject}
+              effectStyle={effectStyle}
+              shapeStyle={shapeStyle}
+              onSelectStyle={handleSelectStyle}
+              onSelectShape={handleSelectShape}
+        
+              /* shadow props */
+              shadowColor={shadowColor}
+              shadowDistance={shadowDistance}
+              shadowOpacity={shadowOpacity}
+              shadowAngle={shadowAngle}
+              shadowBlur={shadowBlur}
+              onShadowColorChange={(color) => {
+                setShadowColor(color);
+                if (effectStyle === "shadow") {
+                  applyShadowToSelected({ color });
+                }
+              }}
+              onShadowDistanceChange={(v) => {
+                setShadowDistance(v);
+                if (effectStyle === "shadow") {
+                  applyShadowToSelected({ distance: v });
+                }
+                if (effectStyle === "echo") {
+                  applyEchoEffectToSelected({ distance: v });
+                }
+              }}
+              onShadowOpacityChange={(v) => {
+                setShadowOpacity(v);
+                if (effectStyle === "shadow") {
+                  applyShadowToSelected({ opacity: v });
+                }
+              }}
+              onShadowAngleChange={(v) => {
+                setShadowAngle(v);
+                if (effectStyle === "shadow") {
+                  applyShadowToSelected({ angle: v });
+                }
+                if (effectStyle === "echo") {
+                  applyEchoEffectToSelected({ angle: v });
+                }
+              }}
+              onShadowBlurChange={(v) => {
+                setShadowBlur(v);
+                if (effectStyle === "shadow") {
+                  applyShadowToSelected({ blur: v });
+                }
+              }}
+              /* highlight */
+              highlightColor={highlightColor}
+              highlightRoundness={highlightRoundness}
+              highlightSize={highlightSize}
+             onHighlightColorChange={(color) => {
+  setHighlightColor(color);
+  if (effectStyle === "highlight") {
+    handleSelectStyle("highlight", { color });
+  }
+}}
 
-  highlightColor={highlightColor}
-  highlightRoundness={highlightRoundness}
-  highlightSize={highlightSize}
-  onHighlightColorChange={(color) => {
-    setHighlightColor(color);
-    if (effectStyle === "highlight") {
-      handleSelectStyle("highlight"); // re-apply with new color
-    }
-  }}
-  onHighlightRoundnessChange={(v) => {
-    setHighlightRoundness(v);
-    if (effectStyle === "highlight") {
-      handleSelectStyle("highlight");
-    }
-  }}
-  onHighlightSizeChange={(v) => {
-    setHighlightSize(v);
-    if (effectStyle === "highlight") {
-      handleSelectStyle("highlight");
-    }
-  }}
-/>
+onHighlightRoundnessChange={(v) => {
+  setHighlightRoundness(v);
+  if (effectStyle === "highlight") {
+    handleSelectStyle("highlight", { roundness: v });
+  }
+}}
 
+onHighlightSizeChange={(v) => {
+  setHighlightSize(v);
+  if (effectStyle === "highlight") {
+    handleSelectStyle("highlight", { size: v });
+  }
+}}
+
+
+
+              /* glitch */
+              glitchPreset={glitchPreset}
+              onGlitchPresetChange={(name) => {
+                setGlitchPreset(name);
+                if (effectStyle === "glitch") {
+                  applyGlitchEffectToSelected();
+                }
+              }}
+              glitchAngle={glitchAngle}
+              glitchOffset={glitchOffset}
+              onGlitchAngleChange={(v) => {
+                setGlitchAngle(v);
+                if (effectStyle === "glitch") {
+                  applyGlitchEffectToSelected();
+                }
+              }}
+              onGlitchOffsetChange={(v) => {
+                setGlitchOffset(v);
+                if (effectStyle === "glitch") {
+                  applyGlitchEffectToSelected();
+                }
+              }}
+              /* echo */
+              echoSteps={echoSteps}
+              onEchoStepsChange={(v) => {
+                setEchoSteps(v);
+                if (effectStyle === "echo") {
+                  applyEchoEffectToSelected({ steps: v });
+                }
+              }}
+              /* curve controls */
+              curveRadius={curveAmount}
+              curveSpacing={curveSpacing}
+              onCurveRadiusChange={(v) => {
+                setCurveAmount(v);
+                if (shapeStyle === "curve") {
+                  applyCurveShapeToSelected({ radius: v });
+                }
+              }}
+              onCurveSpacingChange={(v) => {
+                setCurveSpacing(v);
+                if (shapeStyle === "curve") {
+                  applyCurveShapeToSelected({ letterSpacing: v });
+                }
+              }}
+            />
           </div>
 
           {/* Canvas wrapper */}
@@ -767,7 +445,7 @@ export default function SidebarAndCanvas(props) {
         </section>
       </div>
 
-      {/* EDIT BUBBLE */}
+      {/* EDIT BUBBLE (unchanged) */}
       {activeEdit && (
         <div
           className="fixed z-[9999] bg-white shadow-xl rounded-xl border px-3 py-2 flex items-center gap-2"

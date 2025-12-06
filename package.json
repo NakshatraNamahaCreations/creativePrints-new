@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.12",
-    "fabric": "^6.7.1",
+    "fabric": "^5.5.2",
     "heroicons": "^2.2.0",
     "konva": "^10.0.8",
     "lucide-react": "^0.541.0",
