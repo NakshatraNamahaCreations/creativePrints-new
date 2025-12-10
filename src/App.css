@@ -134,3 +134,116 @@
 .fb-divider{ width:1px; height:20px; background:#374151; margin:0 4px }
 .fb-color input{ width:28px; height:28px; padding:0; border:0; background:transparent; cursor:pointer }
 .fb-label{ font-size:12px; color:#9ca3af }
+
+
+/* Layout */
+.editor-shell {
+  display: flex;
+  height: 100vh;          /* full height, like Vistaprint */
+  background: #f3f4f6;
+}
+
+/* LEFT TOOL RAIL */
+.tool-rail {
+  width: 64px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 4px;
+  gap: 4px;
+}
+
+.tool-button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  padding: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;     /* horizontal center */
+  justify-content: center; /* vertical center inside button */
+  gap: 4px;
+  font-size: 10px;
+  color: #6b7280;
+  cursor: pointer;
+}
+
+.tool-button-active {
+  background: #111827;
+  color: #ffffff;
+}
+
+/* SIDE PANEL */
+.side-panel {
+  width: 280px;
+  background: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-inner {
+  padding: 16px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-inner h3 {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.panel-caption {
+  font-size: 11px;
+  color: #6b7280;
+}
+
+/* Upload button */
+.primary-btn {
+  padding: 10px 12px;
+  border-radius: 9999px;
+  border: none;
+  background: #0ea5e9;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Thumbnails grid, centered nicely */
+.thumb-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.thumb-box {
+  width: 100%;
+  padding-top: 100%;           /* 1:1 square */
+  border-radius: 6px;
+  background: #e5e7eb;
+  position: relative;
+  overflow: hidden;
+}
+
+/* if using real images */
+.thumb-box img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;          /* image centered & cropped, like Vistaprint */
+}
+
+/* CANVAS AREA */
+.canvas-area {
+  flex: 1;
+  display: flex;
+  align-items: center;        /* vertically center canvas */
+  justify-content: center;    /* horizontally center canvas */
+  padding: 16px;
+}
+  

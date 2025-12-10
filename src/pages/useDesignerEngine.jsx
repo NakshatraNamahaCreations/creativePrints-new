@@ -352,7 +352,7 @@ export default function useDesignerEngine(templateId, navigate) {
     };
   }, [templateBase, runtimeEls, side]);
 
-  // main render effect (no longer depends on `data`)
+  // main render effect (❌ don't depend on `data` or you'll reset drag/resize)
   useEffect(() => {
     const tpl = enumeratedTemplate;
     const c = fabricRef.current;
@@ -705,7 +705,7 @@ export default function useDesignerEngine(templateId, navigate) {
   }, [
     enumeratedTemplate,
     palette,
-    // ❌ data removed here so toolbar changes don't get reset by re-render
+    // ⛔ keep data OUT of here otherwise layout resets on every input change
     posOverrides,
     autoHideEmpty,
     dragEnabled,

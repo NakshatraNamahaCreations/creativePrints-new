@@ -3,18 +3,7 @@ import React from "react";
 import TrashIcon from "./TrashIcon.jsx";
 import TextToolbar from "./TextToolbar.jsx";
 import { useTextEffects } from "./useTextEffects.jsx";
-
-/* 🔹 IMPORT YOUR OWN ICONS HERE
-   Put SVG/PNG files in src/assets/icons/ and update paths as needed */
-// import iconProduct from "../assets/icons/product.webp";
-// import iconText from "../assets/icons/product.webp";
-// import iconUploads from "../assets/icons/product.webp";
-// import iconGraphics from "../assets/icons/product.webp";
-// import iconBackground from "../assets/icons/product.webp";
-// import iconTemplate from "../assets/icons/product.webp";
-// import iconTemplateColor from "../assets/icons/product.webp";
-// import iconQr from "../assets/icons/product.webp";
-// import iconTables from "../assets/icons/product.webp";
+import { fabric } from "fabric"; // ✅ for Image.fromURL
 
 export default function SidebarAndCanvas(props) {
   const {
@@ -61,7 +50,6 @@ export default function SidebarAndCanvas(props) {
     highlightColor,
     highlightRoundness,
     highlightSize,
-  
 
     glitchPreset,
     glitchAngle,
@@ -82,7 +70,6 @@ export default function SidebarAndCanvas(props) {
     setHighlightColor,
     setHighlightRoundness,
     setHighlightSize,
-
 
     setGlitchPreset,
     setGlitchAngle,
@@ -109,15 +96,138 @@ export default function SidebarAndCanvas(props) {
     setSide,
   });
 
+// store recent uploaded image URLs (for thumbnails only)
+const [recentUploads, setRecentUploads] = React.useState([]);
+
+// 1️⃣ Upload from device: ONLY save to recentUploads
+const handleUploadFromDevice = (event) => {
+  const files = Array.from(event.target.files || []);
+  if (!files.length) return;
+
+  setRecentUploads((prev) => {
+    const newUrls = files.map((file) => URL.createObjectURL(file));
+    // newest first
+    return [...newUrls, ...prev].slice(0, 20);
+  });
+
+  // allow re-selecting the same file later
+  event.target.value = "";
+};
+
+// Auto-scale images so they fit nicely on the card
+const scaleImageToFit = (img, maxWidth, maxHeight) => {
+  const w = img.width;
+  const h = img.height;
+
+  if (!w || !h) return 1;
+
+  const scale = Math.min(maxWidth / w, maxHeight / h);
+
+  return scale < 1 ? scale : 1; // only shrink, never enlarge
+};
+
+
+// 2️⃣ When user clicks a thumbnail: NOW add to canvas
+const handleAddFromThumbnail = (url) => {
+  if (!fabricCanvas) return;
+
+  fabric.Image.fromURL(url, (img) => {
+    if (!img) return;
+
+    // 1) Compute auto-scale
+    const scale = scaleImageToFit(
+      img,
+      CARD.w * 0.2,   // occupy max 40% of card width
+      CARD.h * 0.2    // occupy max 40% of card height
+    );
+
+    img.scale(scale);
+
+    // 2) Center the image
+    img.set({
+      originX: "center",
+      originY: "center",
+      left: (CARD.w || fabricCanvas.getWidth()) / 2,
+      top: (CARD.h || fabricCanvas.getHeight()) / 2,
+      selectable: true,
+    });
+
+    fabricCanvas.add(img);
+    fabricCanvas.setActiveObject(img);
+    fabricCanvas.requestRenderAll();
+  });
+};
+
+
+
+  // 🔹 1) Simple update: only React state
+  //    Canvas will listen to `data` via useEffect below.
+  const updateFieldStateOnly = React.useCallback(
+    (key, value) => {
+      setData((prev) => ({
+        ...prev,
+        [key]: value,
+      }));
+    },
+    [setData]
+  );
+
+  
+  // 🔹 2) Sync Fabric objects whenever `data` changes
+  React.useEffect(() => {
+    if (!fabricCanvas) return;
+
+    const c = fabricCanvas;
+
+    c.getObjects().forEach((obj) => {
+      const elId = obj.data?.elId; // 👈 MUST match your FIELD_DEFS key
+      if (!elId) return;
+
+      const value = data[elId];
+
+      // TEXT
+      if ((obj.type === "text" || obj.type === "i-text") && typeof value === "string") {
+        if (obj.text !== value) {
+          obj.set("text", value || "");
+        }
+      }
+
+      // IMAGE
+      if (obj.type === "image" && typeof value === "string") {
+        // Replace image with new URL
+        fabric.Image.fromURL(value, (img) => {
+          if (!img) return;
+
+          img.set({
+            left: obj.left,
+            top: obj.top,
+            angle: obj.angle,
+            scaleX: obj.scaleX,
+            scaleY: obj.scaleY,
+            originX: obj.originX,
+            originY: obj.originY,
+            data: obj.data, // keep mapping
+          });
+
+          c.remove(obj);
+          c.add(img);
+          c.requestRenderAll();
+        });
+      }
+    });
+
+    c.requestRenderAll();
+  }, [data, fabricCanvas]);
+
   // left toolbar buttons (now with image icons)
   const LEFT_TOOLS = [
     { id: "product", label: "Product options", icon: "/products/equalizer.png" },
-    { id: "text", label: "Text", icon:"/products/text.png" },
-    { id: "uploads", label: "Uploads", icon: "/products/image-.png"  },
-    { id: "graphics", label: "Graphics", icon: "/products/shapes.png"  },
-    { id: "background", label: "Background", icon: "/products/background.png"  },
-    { id: "template", label: "Template", icon: "/products/layout.png"  },
-    { id: "templateColor", label: "Template color", icon: "/products/paint-bucket.png"  },
+    { id: "text", label: "Text", icon: "/products/text.png" },
+    { id: "uploads", label: "Uploads", icon: "/products/image-.png" },
+    { id: "graphics", label: "Graphics", icon: "/products/shapes.png" },
+    { id: "background", label: "Background", icon: "/products/background.png" },
+    { id: "template", label: "Template", icon: "/products/layout.png" },
+    { id: "templateColor", label: "Template color", icon: "/products/paint-bucket.png" },
     { id: "qrcode", label: "QR-codes", icon: "/products/qr-code.png" },
     { id: "tables", label: "Tables", icon: "/products/grid.png" },
   ];
@@ -142,7 +252,6 @@ export default function SidebarAndCanvas(props) {
                 }
                 onClick={() => setActiveTool(tool.id)}
               >
-                {/* 🔹 REAL IMAGE ICON INSTEAD OF LETTER */}
                 <span
                   className={
                     " h-8 w-8 rounded-lg flex items-center justify-center " +
@@ -155,7 +264,10 @@ export default function SidebarAndCanvas(props) {
                     className="h-8 w-8 object-contain"
                   />
                 </span>
-                <span className="leading-tight text-center" style={{fontSize:"12px"}}>
+                <span
+                  className="leading-tight text-center"
+                  style={{ fontSize: "12px" }}
+                >
                   {tool.label}
                 </span>
               </button>
@@ -164,7 +276,8 @@ export default function SidebarAndCanvas(props) {
         </nav>
 
         {/* MIDDLE PANEL – changes per activeTool */}
-        <aside className="border rounded-xl p-4 bg-white shadow-sm hover:shadow-xl transition-all duration-200">
+              <aside className="border rounded-xl p-4 bg-white shadow-sm hover:shadow-xl transition-all duration-200">
+          {/* TEXT PANEL */}
           {activeTool === "text" && (
             <>
               <h3 className="font-semibold text-lg mb-2">Text</h3>
@@ -216,10 +329,8 @@ export default function SidebarAndCanvas(props) {
                                 onChange={(e) => {
                                   const f = e.target.files?.[0];
                                   if (!f) return;
-                                  setData((v) => ({
-                                    ...v,
-                                    [key]: URL.createObjectURL(f),
-                                  }));
+                                  const url = URL.createObjectURL(f);
+                                  updateFieldStateOnly(key, url);
                                 }}
                               />
                             ) : (
@@ -229,10 +340,7 @@ export default function SidebarAndCanvas(props) {
                                 className="w-full border rounded px-3 py-2"
                                 value={data[key] ?? ""}
                                 onChange={(e) =>
-                                  setData((v) => ({
-                                    ...v,
-                                    [key]: e.target.value,
-                                  }))
+                                  updateFieldStateOnly(key, e.target.value)
                                 }
                               />
                             )}
@@ -263,15 +371,64 @@ export default function SidebarAndCanvas(props) {
             </>
           )}
 
-          {activeTool !== "text" && (
+          {/* UPLOADS PANEL – like Vistaprint left bar */}
+        {activeTool === "uploads" && (
+  <div className="flex flex-col h-full">
+    <h3 className="font-semibold text-lg mb-3">Uploads</h3>
+
+    {/* Upload from this device */}
+    <label className="mb-3">
+      <span className="inline-flex items-center justify-center w-full rounded-full bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium py-2.5 cursor-pointer">
+        Upload from this device
+      </span>
+      <input
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleUploadFromDevice}   
+      />
+    </label>
+
+    <p className="text-xs text-gray-600 mb-2">Recently uploaded</p>
+
+    {recentUploads.length === 0 ? (
+      <p className="text-xs text-gray-400">
+        No uploads yet. Use the button above to add images.
+      </p>
+    ) : (
+      <div className="grid grid-cols-3 gap-2">
+        {recentUploads.map((url, idx) => (
+          <button
+            key={idx}
+            type="button"
+            className="relative w-full pt-[100%] rounded-md overflow-hidden border hover:ring-2 hover:ring-sky-500"
+            onClick={() => handleAddFromThumbnail(url)}
+          >
+            <img
+              src={url}
+              alt={`Upload ${idx + 1}`}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+
+          {/* PLACEHOLDER FOR OTHER TOOLS */}
+          {activeTool !== "text" && activeTool !== "uploads" && (
             <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500">
               <p className="mb-1 font-semibold">
                 {LEFT_TOOLS.find((t) => t.id === activeTool)?.label}
               </p>
-              <p>Panel coming soon – only Text is active for now.</p>
+              <p>Panel coming soon – only Text and Uploads are active for now.</p>
             </div>
           )}
         </aside>
+
 
         {/* CANVAS AREA */}
         <section className="relative flex flex-col items-center justify-center">
@@ -284,7 +441,6 @@ export default function SidebarAndCanvas(props) {
               shapeStyle={shapeStyle}
               onSelectStyle={handleSelectStyle}
               onSelectShape={handleSelectShape}
-        
               /* shadow props */
               shadowColor={shadowColor}
               shadowDistance={shadowDistance}
@@ -331,29 +487,24 @@ export default function SidebarAndCanvas(props) {
               highlightColor={highlightColor}
               highlightRoundness={highlightRoundness}
               highlightSize={highlightSize}
-             onHighlightColorChange={(color) => {
-  setHighlightColor(color);
-  if (effectStyle === "highlight") {
-    handleSelectStyle("highlight", { color });
-  }
-}}
-
-onHighlightRoundnessChange={(v) => {
-  setHighlightRoundness(v);
-  if (effectStyle === "highlight") {
-    handleSelectStyle("highlight", { roundness: v });
-  }
-}}
-
-onHighlightSizeChange={(v) => {
-  setHighlightSize(v);
-  if (effectStyle === "highlight") {
-    handleSelectStyle("highlight", { size: v });
-  }
-}}
-
-
-
+              onHighlightColorChange={(color) => {
+                setHighlightColor(color);
+                if (effectStyle === "highlight") {
+                  handleSelectStyle("highlight", { color });
+                }
+              }}
+              onHighlightRoundnessChange={(v) => {
+                setHighlightRoundness(v);
+                if (effectStyle === "highlight") {
+                  handleSelectStyle("highlight", { roundness: v });
+                }
+              }}
+              onHighlightSizeChange={(v) => {
+                setHighlightSize(v);
+                if (effectStyle === "highlight") {
+                  handleSelectStyle("highlight", { size: v });
+                }
+              }}
               /* glitch */
               glitchPreset={glitchPreset}
               onGlitchPresetChange={(name) => {
@@ -472,7 +623,7 @@ onHighlightSizeChange={(v) => {
                 .getObjects()
                 .find((o) => o.data?.elId === activeEdit.elId);
 
-              if (obj && obj.type === "text") {
+              if (obj && (obj.type === "text" || obj.type === "i-text")) {
                 obj.set("text", val);
                 c.requestRenderAll();
               }

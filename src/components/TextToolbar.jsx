@@ -105,6 +105,7 @@ export default function TextToolbar({
   const [showFlipPanel, setShowFlipPanel] = useState(false);
   const [showMorePanel, setShowMorePanel] = useState(false);
 
+  
   // sync toolbar when selection changes
   useEffect(() => {
     if (
