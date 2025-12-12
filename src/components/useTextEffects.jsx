@@ -412,16 +412,23 @@ export function useTextEffects({
 
 
   // ---------------- SELECTION ----------------
+  // ---------------- SELECTION ----------------
   useEffect(() => {
     const canvas = fabricCanvas;
     if (!canvas) return;
 
     const handle = (e) => {
-      const obj = e.selected?.[0] || null;
+      // whatever was selected (text, image, etc.)
+      const obj = e.selected?.[0] || e.target || null;
+
+      // ✅ always store the selected object
+      setSelectedObject(obj);
+
       const isText =
         obj && ["text", "i-text", "textbox"].includes(obj.type);
-      setSelectedObject(isText ? obj : null);
 
+      // effectStyle / shapeStyle are only meaningful for text,
+      // so we keep that logic but don't block images.
       if (isText && obj.data?.effectStyle) {
         setEffectStyle(obj.data.effectStyle);
       } else if (isText && obj.shadow) {
@@ -453,6 +460,8 @@ export function useTextEffects({
       canvas.off("selection:cleared", clear);
     };
   }, [fabricCanvas]);
+
+
 
   // ---------------- KEEP CLONES IN SYNC WHEN MOVING / SCALING ----------------
   useEffect(() => {

@@ -1,0 +1,236 @@
+/* Base + sizing: narrow vertical panel like your reference */
+.swan-style-panel {
+  width: 320px;               /* narrow panel width to match reference */
+  max-height: 720px;
+  overflow-y: auto;
+  margin-left: -20px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.06);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  color: #111;
+  box-sizing: border-box;
+}
+
+/* header */
+.panel-header-compact {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:10px;
+}
+.panel-title-compact { font-size:20px; font-weight:700; margin:0; }
+.cmyk-toggle {
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #fff;
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-weight:600;
+  cursor:pointer;
+}
+
+/* color picker area */
+.color-picker-wrap { display:flex; flex-direction:column; gap:12px; }
+
+/* make the react-colorful area match reference look */
+.picker-wrap {
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.06);
+  padding: 10px;
+  background: linear-gradient(180deg, #fff, #fff);
+}
+
+/* reduce internal spacing for picker and ensure saturation big like reference */
+.picker-surface .react-colorful__saturation {
+  border-radius: 10px;
+  height: 160px; /* bigger saturation area */
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+}
+
+/* hue bar style */
+.picker-surface .react-colorful__hue {
+  margin-top: 12px;
+  height: 12px;
+  border-radius: 8px;
+  box-shadow: none;
+}
+
+/* pointer style: circular white with subtle border */
+.react-colorful__saturation-pointer,
+.react-colorful__hue-pointer {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.12);
+  transform: translate(-50%, -50%);
+  background: currentColor;
+}
+
+/* hex controls (row) */
+.hex-controls { display:flex; flex-direction:column; gap:10px; }
+
+/* hex input with rounded border, big padding */
+.hex-input-wrap {
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.hex-input {
+  flex: 1 1 auto;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.08);
+  font-weight:700;
+  font-size:14px;
+}
+
+/* tiny circular icon buttons */
+.icon-btn {
+  width:38px;
+  height:38px;
+  border-radius: 8px;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: #fff;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+.icon-btn svg { width:18px; height:18px; display:block; }
+
+/* Clear circle: show empty circle with diagonal slash */
+.icon-btn.clear-circle {
+  position: relative;
+}
+.icon-btn.clear-circle .slash {
+  display:block;
+  width:18px;
+  height:18px;
+  border-radius:50%;
+  border:2px solid rgba(0,0,0,0.12);
+  position:relative;
+}
+.icon-btn.clear-circle .slash::after {
+  content: "";
+  position:absolute;
+  left:4px;
+  top:4px;
+  width:10px;
+  height:2px;
+  background: rgba(0,0,0,0.18);
+  transform: rotate(-45deg);
+}
+
+/* Apply / Clear buttons row */
+.apply-row {
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.btn-apply {
+  padding:8px 12px;
+  border-radius:8px;
+  background:#0d6efd;
+  color:#fff;
+  border: none;
+  cursor:pointer;
+  font-weight:600;
+}
+.btn-clear {
+  padding:8px 12px;
+  border-radius:8px;
+  background:#fff;
+  color:#222;
+  border:1px solid rgba(0,0,0,0.08);
+  cursor:pointer;
+  font-weight:600;
+}
+
+.rgb-meta { color:#666; font-size:12px; margin-top:6px; }
+
+/* Tabs */
+.tabs-row {
+  display:flex;
+  gap:12px;
+  margin-top:12px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  padding-bottom:8px;
+}
+.tab {
+  background: transparent;
+  border:0;
+  font-weight:700;
+  color:#222;
+  padding:6px 0;
+  cursor:pointer;
+  position:relative;
+}
+.tab.active {
+  color:#111;
+}
+.tab.active::after {
+  content:"";
+  position:absolute;
+  left:0;
+  bottom:-9px;
+  height:3px;
+  width:36px;
+  background:#111;
+  border-radius:3px;
+}
+
+/* Tab content area */
+.tab-content { padding-top:12px; }
+
+/* Section title */
+.section-title { font-weight:700; margin-bottom:8px; color:#222; }
+
+/* Swatches grid (circular) */
+.swatches-grid, .presets-grid {
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.swatch-label {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:44px;
+  height:44px;
+  border-radius:50%;
+  padding:6px;
+  cursor:pointer;
+  position:relative;
+}
+.swatch-label .swatch-radio { display:none; }
+.swatch-visual {
+  width:100%;
+  height:100%;
+  border-radius:50%;
+  display:block;
+  border: 2px solid rgba(0,0,0,0.06);
+  box-sizing: border-box;
+}
+
+/* show ring when focused/selected: we'll use :focus-within for keyboard focus */
+.swatch-label:focus-within .swatch-visual,
+.swatch-label .swatch-radio:checked + .swatch-visual,
+.swatch-label:hover .swatch-visual {
+  box-shadow: 0 0 0 4px rgba(0,0,0,0.06);
+  transform: translateZ(0);
+}
+
+/* 'No recent' text */
+.no-recent { color:#777; padding:6px 0; }
+
+/* CMYK panel */
+.cmyk-panel { display:grid; grid-template-columns: repeat(2,1fr); gap:8px; }
+.cmyk-row { display:flex; flex-direction:column; gap:6px; }
+.cmyk-row label { font-weight:700; font-size:13px; }
+.cmyk-row input { padding:8px; border-radius:8px; border:1px solid rgba(0,0,0,0.06); }
+
+/* make scrollbar subtle like reference */
+.swan-style-panel::-webkit-scrollbar { width: 10px; }
+.swan-style-panel::-webkit-scrollbar-thumb { background: #f0f0f0; border-radius: 999px; }

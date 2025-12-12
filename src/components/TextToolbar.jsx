@@ -466,6 +466,7 @@ export default function TextToolbar({
         padding: "8px 14px",
         background: "rgba(255,255,255,0.92)",
         borderRadius: 9999,
+        marginTop:"35px",
         alignItems: "center",
         boxShadow: "0 18px 45px rgba(15,23,42,0.25)",
         border: "1px solid rgba(148,163,184,0.4)",

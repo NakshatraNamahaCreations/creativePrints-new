@@ -1,0 +1,51 @@
+.react-colorful {
+  position: relative;
+  display: block;
+  width: 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.react-colorful__saturation {
+  width: 100%;
+  height: 170px;
+  border-radius: 8px;
+  background: linear-gradient(to right, #fff, rgba(255,255,255,0)),
+              linear-gradient(to top, #000, rgba(0,0,0,0));
+  position: relative;
+}
+
+.react-colorful__saturation-pointer,
+.react-colorful__hue-pointer {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+  position: absolute;
+  transform: translate(-50%, -50%);
+  background-color: currentColor;
+}
+
+.react-colorful__hue {
+  margin-top: 10px;
+  height: 12px;
+  border-radius: 8px;
+  background: linear-gradient(
+    to right,
+    #f00 0%,
+    #ff0 17%,
+    #0f0 33%,
+    #0ff 50%,
+    #00f 67%,
+    #f0f 83%,
+    #f00 100%
+  );
+  position: relative;
+}
+
+.react-colorful,
+.react-colorful * {
+  box-sizing: border-box;
+  max-width: 100%;
+}

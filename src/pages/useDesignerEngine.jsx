@@ -9,7 +9,7 @@ const fabric = FabricNS.fabric ?? FabricNS.default ?? FabricNS;
 
 // CATEGORY -> base px mapping (tweak as needed)
 const CATEGORY_DIMENSIONS = {
-  standard: { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },
+  standard: { dpi: 250, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },
   "rounded-corner": { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 4 },
   rounded: { dpi: 300, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },
   labels: { dpi: 280, widthMM: 89, heightMM: 51, cornerRadiusMM: 2 },

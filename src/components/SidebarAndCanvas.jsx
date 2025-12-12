@@ -1,9 +1,16 @@
 // src/components/SidebarAndCanvas.jsx
 import React from "react";
-import TrashIcon from "./TrashIcon.jsx";
+import { fabric } from "fabric";
+import ImageCropPanel from "./ImageCropPanel.jsx";
+
 import TextToolbar from "./TextToolbar.jsx";
+import ImageToolbar from "./ImageToolbar.jsx";
+import LeftToolbar from "./LeftToolbar.jsx";
+import TextPanel from "./TextPanel.jsx";
+import UploadsPanel from "./UploadsPanel.jsx";
+import BackgroundPanel from "./BackgroundPanel.jsx";
+
 import { useTextEffects } from "./useTextEffects.jsx";
-import { fabric } from "fabric"; // ✅ for Image.fromURL
 
 export default function SidebarAndCanvas(props) {
   const {
@@ -30,56 +37,48 @@ export default function SidebarAndCanvas(props) {
     commitActiveEdit,
   } = props;
 
-  // which left toolbar tab is active
   const [activeTool, setActiveTool] = React.useState("text");
+  const [isCropPanelOpen, setIsCropPanelOpen] = React.useState(false);
 
-  // all the text / effect logic lives in the hook
+  // background
+  const [backgroundColor, setBackgroundColor] = React.useState("");
+  const [recentBgColors, setRecentBgColors] = React.useState([]);
+
+  // text effects hook
   const {
     fabricCanvas,
     selectedObject,
     effectStyle,
     shapeStyle,
-
-    // state
+    // ...lots of values/actions from the hook
     shadowColor,
     shadowDistance,
     shadowOpacity,
     shadowAngle,
     shadowBlur,
-
     highlightColor,
     highlightRoundness,
     highlightSize,
-
     glitchPreset,
     glitchAngle,
     glitchOffset,
-
     echoSteps,
-
     curveAmount,
     curveSpacing,
-
-    // setters
     setShadowColor,
     setShadowDistance,
     setShadowOpacity,
     setShadowAngle,
     setShadowBlur,
-
     setHighlightColor,
     setHighlightRoundness,
     setHighlightSize,
-
     setGlitchPreset,
     setGlitchAngle,
     setGlitchOffset,
-
     setEchoSteps,
     setCurveAmount,
     setCurveSpacing,
-
-    // actions
     handleSelectStyle,
     handleSelectShape,
     applyShadowToSelected,
@@ -96,130 +95,258 @@ export default function SidebarAndCanvas(props) {
     setSide,
   });
 
-// store recent uploaded image URLs (for thumbnails only)
-const [recentUploads, setRecentUploads] = React.useState([]);
+  const [selectedCanvasObject, setSelectedCanvasObject] = React.useState(null);
+  const [recentUploads, setRecentUploads] = React.useState([]);
+  const wrapperRef = React.useRef(null); // used to set wrapper background to match canvas
 
-// 1️⃣ Upload from device: ONLY save to recentUploads
-const handleUploadFromDevice = (event) => {
-  const files = Array.from(event.target.files || []);
-  if (!files.length) return;
-
-  setRecentUploads((prev) => {
-    const newUrls = files.map((file) => URL.createObjectURL(file));
-    // newest first
-    return [...newUrls, ...prev].slice(0, 20);
-  });
-
-  // allow re-selecting the same file later
-  event.target.value = "";
-};
-
-// Auto-scale images so they fit nicely on the card
-const scaleImageToFit = (img, maxWidth, maxHeight) => {
-  const w = img.width;
-  const h = img.height;
-
-  if (!w || !h) return 1;
-
-  const scale = Math.min(maxWidth / w, maxHeight / h);
-
-  return scale < 1 ? scale : 1; // only shrink, never enlarge
-};
-
-
-// 2️⃣ When user clicks a thumbnail: NOW add to canvas
-const handleAddFromThumbnail = (url) => {
-  if (!fabricCanvas) return;
-
-  fabric.Image.fromURL(url, (img) => {
-    if (!img) return;
-
-    // 1) Compute auto-scale
-    const scale = scaleImageToFit(
-      img,
-      CARD.w * 0.2,   // occupy max 40% of card width
-      CARD.h * 0.2    // occupy max 40% of card height
-    );
-
-    img.scale(scale);
-
-    // 2) Center the image
-    img.set({
-      originX: "center",
-      originY: "center",
-      left: (CARD.w || fabricCanvas.getWidth()) / 2,
-      top: (CARD.h || fabricCanvas.getHeight()) / 2,
-      selectable: true,
-    });
-
-    fabricCanvas.add(img);
-    fabricCanvas.setActiveObject(img);
-    fabricCanvas.requestRenderAll();
-  });
-};
-
-
-
-  // 🔹 1) Simple update: only React state
-  //    Canvas will listen to `data` via useEffect below.
-  const updateFieldStateOnly = React.useCallback(
-    (key, value) => {
-      setData((prev) => ({
-        ...prev,
-        [key]: value,
-      }));
-    },
-    [setData]
-  );
-
-  
-  // 🔹 2) Sync Fabric objects whenever `data` changes
   React.useEffect(() => {
     if (!fabricCanvas) return;
+    const handleSel = (e) => setSelectedCanvasObject(e.selected?.[0] || null);
+    const clearSel = () => setSelectedCanvasObject(null);
 
-    const c = fabricCanvas;
+    fabricCanvas.on("selection:created", handleSel);
+    fabricCanvas.on("selection:updated", handleSel);
+    fabricCanvas.on("selection:cleared", clearSel);
 
-    c.getObjects().forEach((obj) => {
-      const elId = obj.data?.elId; // 👈 MUST match your FIELD_DEFS key
-      if (!elId) return;
+    return () => {
+      fabricCanvas.off("selection:created", handleSel);
+      fabricCanvas.off("selection:updated", handleSel);
+      fabricCanvas.off("selection:cleared", clearSel);
+    };
+  }, [fabricCanvas]);
 
-      const value = data[elId];
+  // uploads helpers
+  const handleUploadFromDevice = (event) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length) return;
 
-      // TEXT
-      if ((obj.type === "text" || obj.type === "i-text") && typeof value === "string") {
-        if (obj.text !== value) {
-          obj.set("text", value || "");
-        }
-      }
-
-      // IMAGE
-      if (obj.type === "image" && typeof value === "string") {
-        // Replace image with new URL
-        fabric.Image.fromURL(value, (img) => {
-          if (!img) return;
-
-          img.set({
-            left: obj.left,
-            top: obj.top,
-            angle: obj.angle,
-            scaleX: obj.scaleX,
-            scaleY: obj.scaleY,
-            originX: obj.originX,
-            originY: obj.originY,
-            data: obj.data, // keep mapping
-          });
-
-          c.remove(obj);
-          c.add(img);
-          c.requestRenderAll();
-        });
-      }
+    setRecentUploads((prev) => {
+      const newUrls = files.map((file) => URL.createObjectURL(file));
+      return [...newUrls, ...prev].slice(0, 20);
     });
 
-    c.requestRenderAll();
-  }, [data, fabricCanvas]);
+    event.target.value = "";
+  };
 
-  // left toolbar buttons (now with image icons)
+  const scaleImageToFit = (img, maxWidth, maxHeight) => {
+    const w = img.width;
+    const h = img.height;
+    if (!w || !h) return 1;
+    const scale = Math.min(maxWidth / w, maxHeight / h);
+    return scale < 1 ? scale : 1;
+  };
+
+  const handleAddFromThumbnail = (url) => {
+    if (!fabricCanvas) return;
+    fabric.Image.fromURL(url, (img) => {
+      if (!img) return;
+      const scale = scaleImageToFit(img, CARD.w * 0.2, CARD.h * 0.2);
+      img.scale(scale);
+      img.set({
+        originX: "center",
+        originY: "center",
+        left: (CARD.w || fabricCanvas.getWidth()) / 2,
+        top: (CARD.h || fabricCanvas.getHeight()) / 2,
+        selectable: true,
+      });
+      fabricCanvas.add(img);
+      fabricCanvas.setActiveObject(img);
+      fabricCanvas.requestRenderAll();
+    });
+  };
+
+  const handleDeleteUpload = (idx) => {
+    setRecentUploads((prev) => {
+      const next = [...prev];
+      const url = next[idx];
+      if (url && url.startsWith("blob:")) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch (e) {
+          void e;
+        }
+      }
+      next.splice(idx, 1);
+      return next;
+    });
+  };
+
+  const handleClearUploads = () => {
+    if (!recentUploads.length) return;
+    if (!window.confirm("Remove all recent uploads?")) return;
+    recentUploads.forEach((u) => {
+      if (u && u.startsWith("blob:")) {
+        try { URL.revokeObjectURL(u); } catch (e) { void e; }
+      }
+    });
+    setRecentUploads([]);
+  };
+
+  // delete selected object
+  const handleDeleteSelected = React.useCallback(() => {
+    if (!fabricCanvas || !selectedCanvasObject) return;
+    if (!window.confirm("Delete selected object?")) return;
+
+    try {
+      const src =
+        (typeof selectedCanvasObject.getSrc === "function" && selectedCanvasObject.getSrc()) ||
+        selectedCanvasObject?.src ||
+        selectedCanvasObject?.getElement?.()?.src ||
+        null;
+      if (src && src.startsWith("blob:")) {
+        try { URL.revokeObjectURL(src); } catch (e) { void e; }
+      }
+    } catch (e) { void e; }
+
+    const elId = selectedCanvasObject?.data?.elId;
+    if (elId) {
+      setData((prev) => ({ ...prev, [elId]: "" }));
+    }
+
+    try {
+      fabricCanvas.remove(selectedCanvasObject);
+      fabricCanvas.discardActiveObject();
+      fabricCanvas.requestRenderAll();
+    } catch (err) {
+      console.warn("Failed to delete selected object:", err);
+    }
+  }, [fabricCanvas, selectedCanvasObject, setData]);
+
+  // apply background color to fabric canvas and remember recent
+// in SidebarAndCanvas.jsx (replace your existing applyBackgroundToCanvas)
+const applyBackgroundToCanvas = React.useCallback(async (payload) => {
+  // Support both old hex string usage and the new structured payload
+  // If payload is a string -> treat as color hex (legacy)
+  const dataPayload = typeof payload === "string" || payload === null
+    ? (payload ? { mode: "color", color: payload } : { mode: "transparent" })
+    : payload || { mode: "transparent" };
+
+  if (!fabricCanvas) return;
+
+  try {
+    if (dataPayload.mode === "transparent") {
+      // Remove background color and background image
+      fabricCanvas.setBackgroundColor(null, fabricCanvas.renderAll.bind(fabricCanvas));
+      fabricCanvas.setBackgroundImage(null, fabricCanvas.renderAll.bind(fabricCanvas));
+    } else if (dataPayload.mode === "color") {
+      // Set a plain hex color as canvas background
+      const color = dataPayload.color || "";
+      fabricCanvas.setBackgroundImage(null, fabricCanvas.renderAll.bind(fabricCanvas)); // remove any bg image
+      fabricCanvas.setBackgroundColor(color || null, fabricCanvas.renderAll.bind(fabricCanvas));
+    } else if (dataPayload.mode === "image") {
+      // Set an image as canvas background. Support blob: or url
+      const url = dataPayload.imageUrl;
+      const opacity = typeof dataPayload.opacity === "number" ? dataPayload.opacity : 1;
+      const fit = dataPayload.fit || "cover"; // or 'contain'
+      const scaleProp = dataPayload.scale || null;
+
+      // Remove background color so image is visible
+      fabricCanvas.setBackgroundColor(null, fabricCanvas.renderAll.bind(fabricCanvas));
+
+      // Load the image then compute scale/position
+      await new Promise((resolve, reject) => {
+        fabric.Image.fromURL(url, (img) => {
+          if (!img) { reject(new Error("image load fail")); return; }
+
+          // prepare sizing:
+          const cw = fabricCanvas.getWidth();
+          const ch = fabricCanvas.getHeight();
+
+          // compute scale depending on fit: cover or contain
+          const scaleX = cw / img.width;
+          const scaleY = ch / img.height;
+          let finalScale = 1;
+          if (fit === "cover") finalScale = Math.max(scaleX, scaleY);
+          else finalScale = Math.min(scaleX, scaleY);
+
+          // allow an override scale (0..1)
+          if (typeof scaleProp === "number") finalScale = finalScale * scaleProp;
+
+          img.scale(finalScale);
+          img.set({
+            originX: "center",
+            originY: "center",
+            left: cw / 2,
+            top: ch / 2,
+            selectable: false,
+            evented: false,
+            opacity: opacity,
+          });
+
+          // set as background image
+          fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
+            // alignment handled by img properties above
+            // extra options could go here
+          });
+
+          resolve();
+        }, { crossOrigin: "anonymous" });
+      });
+    }
+
+    // Optionally: update any "template" object(s) that represent the card background.
+    // If your template uses a rectangle or object with a data key like { layer: "card-bg" },
+    // find it and change its fill instead of canvas background (so the template layout keeps border radius, etc).
+    try {
+      const bgObjects = fabricCanvas.getObjects().filter(o => o?.data?.layer === "card-bg" || o?.data?.role === "background");
+      if (bgObjects.length) {
+        bgObjects.forEach((obj) => {
+          if (dataPayload.mode === "image" && dataPayload.imageUrl) {
+            // if you prefer to set image into a rect use pattern fill technique:
+            fabric.Image.fromURL(dataPayload.imageUrl, (img) => {
+              const patternSourceCanvas = new fabric.StaticCanvas(null, { enableRetinaScaling: false });
+              // scale pattern to object bounds:
+              const w = obj.width * obj.scaleX;
+              const h = obj.height * obj.scaleY;
+              img.scaleToWidth(w);
+              img.set({ originX: "left", originY: "top" });
+              patternSourceCanvas.setWidth(w);
+              patternSourceCanvas.setHeight(h);
+              patternSourceCanvas.add(img);
+              obj.set("fill", new fabric.Pattern({ source: patternSourceCanvas.getElement(), repeat: "no-repeat" }));
+              obj.setCoords();
+              fabricCanvas.requestRenderAll();
+            }, { crossOrigin: "anonymous" });
+          } else if (dataPayload.mode === "color") {
+            obj.set("fill", dataPayload.color || "");
+            obj.setCoords();
+            fabricCanvas.requestRenderAll();
+          } else if (dataPayload.mode === "transparent") {
+            obj.set("fill", null);
+            obj.setCoords();
+            fabricCanvas.requestRenderAll();
+          }
+        });
+      }
+    } catch  {
+  // intentionally ignored
+}
+
+
+    // remember recents (color only)
+    if (dataPayload.mode === "color" && dataPayload.color) {
+      setRecentBgColors((prev) => {
+        const next = [dataPayload.color, ...prev.filter((c) => c !== dataPayload.color)];
+        return next.slice(0, 8);
+      });
+      setBackgroundColor(dataPayload.color);
+    } else if (dataPayload.mode === "transparent") {
+      setBackgroundColor("");
+    }
+
+    // update wrapper background so the preview area outside the canvas also matches
+    if (wrapperRef.current) {
+      if (dataPayload.mode === "color") wrapperRef.current.style.background = dataPayload.color || "transparent";
+      else if (dataPayload.mode === "transparent") wrapperRef.current.style.background = "transparent";
+      else wrapperRef.current.style.background = ""; // or a subtle pattern if you want
+    }
+  } catch (err) {
+    console.error("applyBackgroundToCanvas failed:", err);
+  }
+}, [fabricCanvas, wrapperRef]);
+
+
+  // LEFT tools constant
   const LEFT_TOOLS = [
     { id: "product", label: "Product options", icon: "/products/equalizer.png" },
     { id: "text", label: "Text", icon: "/products/text.png" },
@@ -232,363 +359,152 @@ const handleAddFromThumbnail = (url) => {
     { id: "tables", label: "Tables", icon: "/products/grid.png" },
   ];
 
-  // ---------------- UI ----------------
+  const isTextSelection =
+    selectedObject && ["text", "i-text", "textbox"].includes(selectedObject.type);
+
+  const selectedImage = selectedCanvasObject && selectedCanvasObject.type === "image" ? selectedCanvasObject : null;
+
   return (
-    <>
-      <div className="grid grid-cols-1 lg:grid-cols-[72px_360px_1fr] gap-6">
-        {/* LEFT VISTAPRINT-STYLE TOOLBAR */}
-        <nav className="hidden lg:flex flex-col bg-white rounded-xl shadow-sm border py-2">
-          {LEFT_TOOLS.map((tool) => {
-            const isActive = activeTool === tool.id;
-            return (
-              <button
-                key={tool.id}
-                type="button"
-                className={
-                  "flex flex-col items-center justify-center px-2 py-3 text-[11px] border-l-4 transition-colors " +
-                  (isActive
-                    ? "border-blue-600 bg-blue-50 font-semibold text-blue-700"
-                    : "border-transparent hover:bg-gray-50 text-gray-600")
-                }
-                onClick={() => setActiveTool(tool.id)}
-              >
-                <span
-                  className={
-                    " h-8 w-8 rounded-lg flex items-center justify-center " +
-                    (isActive ? "bg-sky-200" : "")
-                  }
-                >
-                  <img
-                    src={tool.icon}
-                    alt={tool.label}
-                    className="h-8 w-8 object-contain"
-                  />
-                </span>
-                <span
-                  className="leading-tight text-center"
-                  style={{ fontSize: "12px" }}
-                >
-                  {tool.label}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
+    <div className="relative">
+      {selectedImage && (
+        <ImageCropPanel isOpen={isCropPanelOpen} onClose={() => setIsCropPanelOpen(false)} canvas={fabricCanvas} selectedObject={selectedImage} />
+      )}
 
-        {/* MIDDLE PANEL – changes per activeTool */}
-              <aside className="border rounded-xl p-4 bg-white shadow-sm hover:shadow-xl transition-all duration-200">
-          {/* TEXT PANEL */}
+      {/* Tailwind grid: left fixed 72px, centre fixed 360px, right flexible */}
+      <div className="grid grid-cols-1 lg:grid-cols-[72px_360px_minmax(0,1fr)] gap-6">
+        {/* LEFT: fixed width wrapper to prevent overflow */}
+        <div className="w-[72px] min-w-[72px]">
+          <div className="flex flex-col items-center h-full">
+            <LeftToolbar
+              leftTools={LEFT_TOOLS}
+              activeTool={activeTool}
+              setActiveTool={setActiveTool}
+              selectedImage={selectedImage}
+              onDeleteSelected={handleDeleteSelected}
+              onClearUploads={handleClearUploads}
+              recentUploads={recentUploads}
+            />
+          </div>
+        </div>
+
+        {/* MIDDLE: control panel fixed 360px */}
+        <aside className="w-[300px] min-w-[300px] border rounded-xl p-4 bg-white shadow-sm hover:shadow-xl transition-all duration-200">
           {activeTool === "text" && (
-            <>
-              <h3 className="font-semibold text-lg mb-2">Text</h3>
-
-              {/* Toggles */}
-              <div className="flex items-center gap-4 mt-2 mb-3 text-sm flex-wrap">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={autoHideEmpty}
-                    onChange={(e) => setAutoHideEmpty(e.target.checked)}
-                  />
-                  Auto-hide empty
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={dragEnabled}
-                    onChange={(e) => setDragEnabled(e.target.checked)}
-                  />
-                  Enable drag
-                </label>
-              </div>
-
-              <div className="space-y-4">
-                {FIELD_DEFS.map(([label, key, type]) => {
-                  const deleted = deletedKeys.has(key);
-
-                  return (
-                    <div key={key} className="space-y-1">
-                      {deleted ? (
-                        <div className="text-xs text-gray-400 border rounded px-3 py-2">
-                          {label} removed
-                        </div>
-                      ) : (
-                        <>
-                          {type === "file" && (
-                            <span className="text-xs text-gray-600 block">
-                              {label} (Image file)
-                            </span>
-                          )}
-
-                          <div className="relative">
-                            {type === "file" ? (
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="w-full border rounded px-3 py-2"
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0];
-                                  if (!f) return;
-                                  const url = URL.createObjectURL(f);
-                                  updateFieldStateOnly(key, url);
-                                }}
-                              />
-                            ) : (
-                              <input
-                                type={type}
-                                placeholder={label}
-                                className="w-full border rounded px-3 py-2"
-                                value={data[key] ?? ""}
-                                onChange={(e) =>
-                                  updateFieldStateOnly(key, e.target.value)
-                                }
-                              />
-                            )}
-
-                            <button
-                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 border rounded bg-white hover:bg-red-50"
-                              onClick={() => deleteFieldByKey(key)}
-                            >
-                              <TrashIcon className="w-4 h-4 text-red-600" />
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Add field */}
-                <button
-                  type="button"
-                  className="w-full py-2 rounded bg-black text-white"
-                  disabled={side === "back"}
-                  onClick={addNewTextField}
-                >
-                  Add Text
-                </button>
-              </div>
-            </>
+            <TextPanel
+              FIELD_DEFS={FIELD_DEFS}
+              data={data}
+              deletedKeys={deletedKeys}
+              deleteFieldByKey={deleteFieldByKey}
+              updateFieldStateOnly={(k, v) => setData((p) => ({ ...p, [k]: v }))}
+              addNewTextField={addNewTextField}
+              autoHideEmpty={autoHideEmpty}
+              setAutoHideEmpty={setAutoHideEmpty}
+              dragEnabled={dragEnabled}
+              setDragEnabled={setDragEnabled}
+              side={side}
+            />
           )}
 
-          {/* UPLOADS PANEL – like Vistaprint left bar */}
-        {activeTool === "uploads" && (
-  <div className="flex flex-col h-full">
-    <h3 className="font-semibold text-lg mb-3">Uploads</h3>
-
-    {/* Upload from this device */}
-    <label className="mb-3">
-      <span className="inline-flex items-center justify-center w-full rounded-full bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium py-2.5 cursor-pointer">
-        Upload from this device
-      </span>
-      <input
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={handleUploadFromDevice}   
-      />
-    </label>
-
-    <p className="text-xs text-gray-600 mb-2">Recently uploaded</p>
-
-    {recentUploads.length === 0 ? (
-      <p className="text-xs text-gray-400">
-        No uploads yet. Use the button above to add images.
-      </p>
-    ) : (
-      <div className="grid grid-cols-3 gap-2">
-        {recentUploads.map((url, idx) => (
-          <button
-            key={idx}
-            type="button"
-            className="relative w-full pt-[100%] rounded-md overflow-hidden border hover:ring-2 hover:ring-sky-500"
-            onClick={() => handleAddFromThumbnail(url)}
-          >
-            <img
-              src={url}
-              alt={`Upload ${idx + 1}`}
-              className="absolute inset-0 w-full h-full object-cover"
+          {activeTool === "uploads" && (
+            <UploadsPanel
+              recentUploads={recentUploads}
+              onUploadFromDevice={handleUploadFromDevice}
+              onAddFromThumbnail={handleAddFromThumbnail}
+              onDeleteUpload={handleDeleteUpload}
             />
-          </button>
-        ))}
-      </div>
-    )}
-  </div>
-)}
+          )}
 
+          {activeTool === "background" && (
+            <BackgroundPanel
+              initialHex={backgroundColor || "#FFFFFF"}
+              onApply={applyBackgroundToCanvas}
+              initialRecents={recentBgColors}
+              presets={[
+                "#ffffff","#f5f5f5","#ffe7e7","#ffd9b3",
+                "#fff2b3","#e8ffdb","#dbe7ff","#e7e7ff",
+                "#f0d9ff"
+              ]}
+            />
+          )}
 
-          {/* PLACEHOLDER FOR OTHER TOOLS */}
-          {activeTool !== "text" && activeTool !== "uploads" && (
+          {activeTool !== "text" && activeTool !== "uploads" && activeTool !== "background" && (
             <div className="flex flex-col items-center justify-center h-full text-sm text-gray-500">
-              <p className="mb-1 font-semibold">
-                {LEFT_TOOLS.find((t) => t.id === activeTool)?.label}
-              </p>
-              <p>Panel coming soon – only Text and Uploads are active for now.</p>
+              <p className="mb-1 font-semibold">{LEFT_TOOLS.find((t) => t.id === activeTool)?.label}</p>
+              <p>Panel coming soon – only Text, Uploads and Background are active for now.</p>
             </div>
           )}
         </aside>
 
-
-        {/* CANVAS AREA */}
-        <section className="relative flex flex-col items-center justify-center">
-          {/* Toolbar floating above canvas */}
+        {/* RIGHT: flexible canvas area; min-w-0 allows it to shrink instead of forcing other columns to grow */}
+        <section className="relative flex flex-col items-center justify-center min-w-0">
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 z-20">
-            <TextToolbar
-              canvas={fabricCanvas}
-              selectedObject={selectedObject}
-              effectStyle={effectStyle}
-              shapeStyle={shapeStyle}
-              onSelectStyle={handleSelectStyle}
-              onSelectShape={handleSelectShape}
-              /* shadow props */
-              shadowColor={shadowColor}
-              shadowDistance={shadowDistance}
-              shadowOpacity={shadowOpacity}
-              shadowAngle={shadowAngle}
-              shadowBlur={shadowBlur}
-              onShadowColorChange={(color) => {
-                setShadowColor(color);
-                if (effectStyle === "shadow") {
-                  applyShadowToSelected({ color });
-                }
-              }}
-              onShadowDistanceChange={(v) => {
-                setShadowDistance(v);
-                if (effectStyle === "shadow") {
-                  applyShadowToSelected({ distance: v });
-                }
-                if (effectStyle === "echo") {
-                  applyEchoEffectToSelected({ distance: v });
-                }
-              }}
-              onShadowOpacityChange={(v) => {
-                setShadowOpacity(v);
-                if (effectStyle === "shadow") {
-                  applyShadowToSelected({ opacity: v });
-                }
-              }}
-              onShadowAngleChange={(v) => {
-                setShadowAngle(v);
-                if (effectStyle === "shadow") {
-                  applyShadowToSelected({ angle: v });
-                }
-                if (effectStyle === "echo") {
-                  applyEchoEffectToSelected({ angle: v });
-                }
-              }}
-              onShadowBlurChange={(v) => {
-                setShadowBlur(v);
-                if (effectStyle === "shadow") {
-                  applyShadowToSelected({ blur: v });
-                }
-              }}
-              /* highlight */
-              highlightColor={highlightColor}
-              highlightRoundness={highlightRoundness}
-              highlightSize={highlightSize}
-              onHighlightColorChange={(color) => {
-                setHighlightColor(color);
-                if (effectStyle === "highlight") {
-                  handleSelectStyle("highlight", { color });
-                }
-              }}
-              onHighlightRoundnessChange={(v) => {
-                setHighlightRoundness(v);
-                if (effectStyle === "highlight") {
-                  handleSelectStyle("highlight", { roundness: v });
-                }
-              }}
-              onHighlightSizeChange={(v) => {
-                setHighlightSize(v);
-                if (effectStyle === "highlight") {
-                  handleSelectStyle("highlight", { size: v });
-                }
-              }}
-              /* glitch */
-              glitchPreset={glitchPreset}
-              onGlitchPresetChange={(name) => {
-                setGlitchPreset(name);
-                if (effectStyle === "glitch") {
-                  applyGlitchEffectToSelected();
-                }
-              }}
-              glitchAngle={glitchAngle}
-              glitchOffset={glitchOffset}
-              onGlitchAngleChange={(v) => {
-                setGlitchAngle(v);
-                if (effectStyle === "glitch") {
-                  applyGlitchEffectToSelected();
-                }
-              }}
-              onGlitchOffsetChange={(v) => {
-                setGlitchOffset(v);
-                if (effectStyle === "glitch") {
-                  applyGlitchEffectToSelected();
-                }
-              }}
-              /* echo */
-              echoSteps={echoSteps}
-              onEchoStepsChange={(v) => {
-                setEchoSteps(v);
-                if (effectStyle === "echo") {
-                  applyEchoEffectToSelected({ steps: v });
-                }
-              }}
-              /* curve controls */
-              curveRadius={curveAmount}
-              curveSpacing={curveSpacing}
-              onCurveRadiusChange={(v) => {
-                setCurveAmount(v);
-                if (shapeStyle === "curve") {
-                  applyCurveShapeToSelected({ radius: v });
-                }
-              }}
-              onCurveSpacingChange={(v) => {
-                setCurveSpacing(v);
-                if (shapeStyle === "curve") {
-                  applyCurveShapeToSelected({ letterSpacing: v });
-                }
-              }}
-            />
+            {isTextSelection && (
+              <TextToolbar
+                canvas={fabricCanvas}
+                selectedObject={selectedObject}
+                effectStyle={effectStyle}
+                shapeStyle={shapeStyle}
+                onSelectStyle={handleSelectStyle}
+                onSelectShape={handleSelectShape}
+                shadowColor={shadowColor}
+                shadowDistance={shadowDistance}
+                shadowOpacity={shadowOpacity}
+                shadowAngle={shadowAngle}
+                shadowBlur={shadowBlur}
+                onShadowColorChange={(c) => { setShadowColor(c); if (effectStyle === "shadow") applyShadowToSelected({ color: c }); }}
+                onShadowDistanceChange={(v) => { setShadowDistance(v); if (effectStyle === "shadow") applyShadowToSelected({ distance: v }); if (effectStyle === "echo") applyEchoEffectToSelected({ distance: v }); }}
+                onShadowOpacityChange={(v) => { setShadowOpacity(v); if (effectStyle === "shadow") applyShadowToSelected({ opacity: v }); }}
+                onShadowAngleChange={(v) => { setShadowAngle(v); if (effectStyle === "shadow") applyShadowToSelected({ angle: v }); if (effectStyle === "echo") applyEchoEffectToSelected({ angle: v }); }}
+                onShadowBlurChange={(v) => { setShadowBlur(v); if (effectStyle === "shadow") applyShadowToSelected({ blur: v }); }}
+                highlightColor={highlightColor}
+                highlightRoundness={highlightRoundness}
+                highlightSize={highlightSize}
+                onHighlightColorChange={(color) => { setHighlightColor(color); if (effectStyle === "highlight") handleSelectStyle("highlight", { color }); }}
+                onHighlightRoundnessChange={(v) => { setHighlightRoundness(v); if (effectStyle === "highlight") handleSelectStyle("highlight", { roundness: v }); }}
+                onHighlightSizeChange={(v) => { setHighlightSize(v); if (effectStyle === "highlight") handleSelectStyle("highlight", { size: v }); }}
+                glitchPreset={glitchPreset}
+                onGlitchPresetChange={(name) => { setGlitchPreset(name); if (effectStyle === "glitch") applyGlitchEffectToSelected(); }}
+                glitchAngle={glitchAngle}
+                glitchOffset={glitchOffset}
+                onGlitchAngleChange={(v) => { setGlitchAngle(v); if (effectStyle === "glitch") applyGlitchEffectToSelected(); }}
+                onGlitchOffsetChange={(v) => { setGlitchOffset(v); if (effectStyle === "glitch") applyGlitchEffectToSelected(); }}
+                echoSteps={echoSteps}
+                onEchoStepsChange={(v) => { setEchoSteps(v); if (effectStyle === "echo") applyEchoEffectToSelected({ steps: v }); }}
+                curveRadius={curveAmount}
+                curveSpacing={curveSpacing}
+                onCurveRadiusChange={(v) => { setCurveAmount(v); if (shapeStyle === "curve") applyCurveShapeToSelected({ radius: v }); }}
+                onCurveSpacingChange={(v) => { setCurveSpacing(v); if (shapeStyle === "curve") applyCurveShapeToSelected({ letterSpacing: v }); }}
+              />
+            )}
+
+            {selectedImage && (
+              <ImageToolbar canvas={fabricCanvas} selectedObject={selectedImage} onOpenCropPanel={() => setIsCropPanelOpen(true)} onDeleteSelected={handleDeleteSelected} />
+            )}
           </div>
 
-          {/* Canvas wrapper */}
+          {/* wrapperRef lets us set background of card region to match canvas background */}
           <div
-            className="mt-10 rounded-xl border bg-white shadow-xl relative"
+            ref={wrapperRef}
+            className="rounded-xl border bg-white shadow-xl relative overflow-hidden"
             style={{
-              borderRadius: CARD.cornerRadiusPx
-                ? `${CARD.cornerRadiusPx}px`
-                : undefined,
-              overflow: CARD.cornerRadiusPx ? "hidden" : undefined,
+              borderRadius: CARD.cornerRadiusPx ? `${CARD.cornerRadiusPx}px` : undefined,
             }}
           >
             <canvas ref={canvasRef} width={CARD.w} height={CARD.h} />
           </div>
 
-          <div className="text-xs text-gray-500 mt-2">
-            {side} • {CARD.widthMM}×{CARD.heightMM} mm preview
-          </div>
+          <div className="text-xs text-gray-500 mt-2">{side} • {CARD.widthMM}×{CARD.heightMM} mm preview</div>
 
-          {/* Front/Back Switch */}
           <div className="mt-6 flex gap-0 text-sm">
             <button
               onClick={() => setSide("front")}
-              className={`px-4 py-3 border rounded-l-md ${
-                side === "front"
-                  ? "ring-2 ring-blue-500 shadow-md"
-                  : "hover:ring-1 hover:ring-blue-400"
-              }`}
+              className={`px-4 py-3 border rounded-l-md ${side === "front" ? "ring-2 ring-blue-500 shadow-md" : "hover:ring-1 hover:ring-blue-400"}`}
             >
               Front
             </button>
             <button
               onClick={() => setSide("back")}
-              className={`px-4 py-3 border rounded-r-md ${
-                side === "back"
-                  ? "ring-2 ring-blue-500 shadow-md"
-                  : "hover:ring-1 hover:ring-blue-400"
-              }`}
+              className={`px-4 py-3 border rounded-r-md ${side === "back" ? "ring-2 ring-blue-500 shadow-md" : "hover:ring-1 hover:ring-blue-400"}`}
             >
               Back
             </button>
@@ -596,14 +512,10 @@ const handleAddFromThumbnail = (url) => {
         </section>
       </div>
 
-      {/* EDIT BUBBLE (unchanged) */}
       {activeEdit && (
         <div
           className="fixed z-[9999] bg-white shadow-xl rounded-xl border px-3 py-2 flex items-center gap-2"
-          style={{
-            left: activeEdit.leftPx,
-            top: activeEdit.topPx,
-          }}
+          style={{ left: activeEdit.leftPx, top: activeEdit.topPx }}
         >
           <input
             ref={editInputRef}
@@ -611,44 +523,22 @@ const handleAddFromThumbnail = (url) => {
             value={activeEdit.value}
             onChange={(e) => {
               const val = e.target.value;
-
-              setActiveEdit((prev) =>
-                prev ? { ...prev, value: val } : prev
-              );
-
+              setActiveEdit((prev) => (prev ? { ...prev, value: val } : prev));
               const c = fabricCanvas;
               if (!c) return;
-
-              const obj = c
-                .getObjects()
-                .find((o) => o.data?.elId === activeEdit.elId);
-
+              const obj = c.getObjects().find((o) => o.data?.elId === activeEdit.elId);
               if (obj && (obj.type === "text" || obj.type === "i-text")) {
                 obj.set("text", val);
                 c.requestRenderAll();
               }
             }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitActiveEdit();
-              if (e.key === "Escape") setActiveEdit(null);
-            }}
+            onKeyDown={(e) => { if (e.key === "Enter") commitActiveEdit(); if (e.key === "Escape") setActiveEdit(null); }}
           />
 
-          <button
-            className="text-xs border rounded px-2 py-1 bg-black text-white"
-            onClick={commitActiveEdit}
-          >
-            Save
-          </button>
-
-          <button
-            className="text-xs border rounded px-2 py-1"
-            onClick={() => setActiveEdit(null)}
-          >
-            ✕
-          </button>
+          <button className="text-xs border rounded px-2 py-1 bg-black text-white" onClick={commitActiveEdit}>Save</button>
+          <button className="text-xs border rounded px-2 py-1" onClick={() => setActiveEdit(null)}>✕</button>
         </div>
       )}
-    </>
+    </div>
   );
 }
