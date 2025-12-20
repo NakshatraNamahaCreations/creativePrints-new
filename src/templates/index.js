@@ -863,7 +863,6 @@ export const TEMPLATES = [
         // full white background
         { type: "rect", x: 0, y: 0, w: "100%", h: "100%", fill: "{bg}" },
 
-        // ===== TOP HEADER =====
         // solid accent (your renderer doesn't do gradients, so we approximate)
         { type: "rect", x: 0, y: 0, w: "100%", h: "14%", fill: "{accent}" },
 

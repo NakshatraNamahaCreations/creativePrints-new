@@ -234,3 +234,6 @@
 /* make scrollbar subtle like reference */
 .swan-style-panel::-webkit-scrollbar { width: 10px; }
 .swan-style-panel::-webkit-scrollbar-thumb { background: #f0f0f0; border-radius: 999px; }
+
+
+

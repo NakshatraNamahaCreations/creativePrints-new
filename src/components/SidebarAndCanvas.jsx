@@ -9,6 +9,7 @@ import LeftToolbar from "./LeftToolbar.jsx";
 import TextPanel from "./TextPanel.jsx";
 import UploadsPanel from "./UploadsPanel.jsx";
 import BackgroundPanel from "./BackgroundPanel.jsx";
+import QrPanel from "./QrPanel.jsx";
 
 import { useTextEffects } from "./useTextEffects.jsx";
 
@@ -35,6 +36,8 @@ export default function SidebarAndCanvas(props) {
     setActiveEdit,
     editInputRef,
     commitActiveEdit,
+    // optional hook: setCanvasBackground from the engine, if exposed
+    setCanvasBackground,
   } = props;
 
   const [activeTool, setActiveTool] = React.useState("text");
@@ -99,6 +102,59 @@ export default function SidebarAndCanvas(props) {
   const [recentUploads, setRecentUploads] = React.useState([]);
   const wrapperRef = React.useRef(null); // used to set wrapper background to match canvas
 
+  // ---------- applyQrToCanvas ----------
+const applyQrToCanvas = React.useCallback(async (opts = {}) => {
+  // opts: { dataUrl, sizePx, left, top, scale, selectable }
+  const c = fabricRef?.current || fabricCanvas;
+  if (!c) return;
+  if (!opts || !opts.dataUrl) return;
+
+  try {
+    // add QR as fabric.Image from dataURL
+    await new Promise((resolve, reject) => {
+      fabric.Image.fromURL(opts.dataUrl, (img) => {
+        if (!img) return reject(new Error("QR image load failed"));
+        // set sensible defaults
+        const size = typeof opts.sizePx === "number" ? opts.sizePx : Math.min(c.getWidth(), c.getHeight()) * 0.2;
+        // ensure image uses its own natural size: scale relative to size param
+        const scale = size / Math.max(img.width || 1, img.height || 1);
+
+        img.set({
+          left: typeof opts.left === "number" ? opts.left : (CARD.w || c.getWidth()) / 2,
+          top: typeof opts.top === "number" ? opts.top : (CARD.h || c.getHeight()) / 2,
+          originX: "center",
+          originY: "center",
+          selectable: typeof opts.selectable === "boolean" ? opts.selectable : true,
+          hasControls: true,
+          lockScalingFlip: true,
+        });
+
+        img.scale((typeof opts.scale === "number" ? opts.scale : 1) * scale);
+
+        // attach meta so you can find/delete later
+        img.set("data", { role: "qr", meta: opts.meta || null });
+
+        c.add(img);
+        // ensure bg stays at back if present
+        const bg = c.getObjects().find(o => o?.data?.role === "background");
+        if (bg) c.sendToBack(bg);
+
+        c.setActiveObject(img);
+        // more forceful redraw
+        c.renderOnAddRemove = true;
+        c.renderAll();
+        setTimeout(() => { try { c.renderAll(); } catch (e) { void e; } }, 0);
+
+        resolve();
+      }, { crossOrigin: "anonymous" });
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("applyQrToCanvas failed:", err);
+  }
+}, [fabricRef, fabricCanvas, CARD]);
+
+
   React.useEffect(() => {
     if (!fabricCanvas) return;
     const handleSel = (e) => setSelectedCanvasObject(e.selected?.[0] || null);
@@ -137,24 +193,33 @@ export default function SidebarAndCanvas(props) {
   };
 
   const handleAddFromThumbnail = (url) => {
-    if (!fabricCanvas) return;
+    const c = fabricRef?.current;
+    if (!c) return;
     fabric.Image.fromURL(url, (img) => {
       if (!img) return;
-      const scale = scaleImageToFit(img, CARD.w * 0.2, CARD.h * 0.2);
+      const canvasW = c.getWidth();
+      const canvasH = c.getHeight();
+      const scale = scaleImageToFit(img, (CARD.w || canvasW) * 0.2, (CARD.h || canvasH) * 0.2);
       img.scale(scale);
       img.set({
         originX: "center",
         originY: "center",
-        left: (CARD.w || fabricCanvas.getWidth()) / 2,
-        top: (CARD.h || fabricCanvas.getHeight()) / 2,
+        left: (CARD.w || canvasW) / 2,
+        top: (CARD.h || canvasH) / 2,
         selectable: true,
       });
-      fabricCanvas.add(img);
-      fabricCanvas.setActiveObject(img);
-      fabricCanvas.requestRenderAll();
-    });
+      c.add(img);
+      c.setActiveObject(img);
+      c.requestRenderAll();
+      // ensure bg stays at back
+      const bg = c.getObjects().find(o => o?.data?.role === "background");
+      if (bg) c.sendToBack(bg);
+    }, { crossOrigin: "anonymous" });
   };
 
+
+
+  
   const handleDeleteUpload = (idx) => {
     setRecentUploads((prev) => {
       const next = [...prev];
@@ -184,7 +249,8 @@ export default function SidebarAndCanvas(props) {
 
   // delete selected object
   const handleDeleteSelected = React.useCallback(() => {
-    if (!fabricCanvas || !selectedCanvasObject) return;
+    const c = fabricRef?.current;
+    if (!c || !selectedCanvasObject) return;
     if (!window.confirm("Delete selected object?")) return;
 
     try {
@@ -204,147 +270,161 @@ export default function SidebarAndCanvas(props) {
     }
 
     try {
-      fabricCanvas.remove(selectedCanvasObject);
-      fabricCanvas.discardActiveObject();
-      fabricCanvas.requestRenderAll();
+      c.remove(selectedCanvasObject);
+      c.discardActiveObject();
+      c.requestRenderAll();
+      // ensure bg stays at back
+      const bg = c.getObjects().find(o => o?.data?.role === "background");
+      if (bg) c.sendToBack(bg);
     } catch (err) {
       console.warn("Failed to delete selected object:", err);
     }
-  }, [fabricCanvas, selectedCanvasObject, setData]);
+  }, [fabricRef, selectedCanvasObject, setData]);
 
-  // apply background color to fabric canvas and remember recent
-// in SidebarAndCanvas.jsx (replace your existing applyBackgroundToCanvas)
-const applyBackgroundToCanvas = React.useCallback(async (payload) => {
-  // Support both old hex string usage and the new structured payload
-  // If payload is a string -> treat as color hex (legacy)
-  const dataPayload = typeof payload === "string" || payload === null
-    ? (payload ? { mode: "color", color: payload } : { mode: "transparent" })
-    : payload || { mode: "transparent" };
+  // ---------- applyBackgroundToCanvas (keeps single permanent bg rect) ----------
+  const applyBackgroundToCanvas = React.useCallback(async (payload) => {
+    // Accept either a hex string (legacy) or an object payload:
+    // string -> treat as color; null/"" -> transparent
+    const dataPayload =
+      typeof payload === "string" || payload === null
+        ? payload
+          ? { mode: "color", color: payload }
+          : { mode: "transparent" }
+        : payload || { mode: "transparent" };
 
-  if (!fabricCanvas) return;
+    const c = fabricRef?.current || fabricCanvas;
+    if (!c) return;
 
-  try {
-    if (dataPayload.mode === "transparent") {
-      // Remove background color and background image
-      fabricCanvas.setBackgroundColor(null, fabricCanvas.renderAll.bind(fabricCanvas));
-      fabricCanvas.setBackgroundImage(null, fabricCanvas.renderAll.bind(fabricCanvas));
-    } else if (dataPayload.mode === "color") {
-      // Set a plain hex color as canvas background
-      const color = dataPayload.color || "";
-      fabricCanvas.setBackgroundImage(null, fabricCanvas.renderAll.bind(fabricCanvas)); // remove any bg image
-      fabricCanvas.setBackgroundColor(color || null, fabricCanvas.renderAll.bind(fabricCanvas));
-    } else if (dataPayload.mode === "image") {
-      // Set an image as canvas background. Support blob: or url
-      const url = dataPayload.imageUrl;
-      const opacity = typeof dataPayload.opacity === "number" ? dataPayload.opacity : 1;
-      const fit = dataPayload.fit || "cover"; // or 'contain'
-      const scaleProp = dataPayload.scale || null;
-
-      // Remove background color so image is visible
-      fabricCanvas.setBackgroundColor(null, fabricCanvas.renderAll.bind(fabricCanvas));
-
-      // Load the image then compute scale/position
-      await new Promise((resolve, reject) => {
-        fabric.Image.fromURL(url, (img) => {
-          if (!img) { reject(new Error("image load fail")); return; }
-
-          // prepare sizing:
-          const cw = fabricCanvas.getWidth();
-          const ch = fabricCanvas.getHeight();
-
-          // compute scale depending on fit: cover or contain
-          const scaleX = cw / img.width;
-          const scaleY = ch / img.height;
-          let finalScale = 1;
-          if (fit === "cover") finalScale = Math.max(scaleX, scaleY);
-          else finalScale = Math.min(scaleX, scaleY);
-
-          // allow an override scale (0..1)
-          if (typeof scaleProp === "number") finalScale = finalScale * scaleProp;
-
-          img.scale(finalScale);
-          img.set({
-            originX: "center",
-            originY: "center",
-            left: cw / 2,
-            top: ch / 2,
-            selectable: false,
-            evented: false,
-            opacity: opacity,
-          });
-
-          // set as background image
-          fabricCanvas.setBackgroundImage(img, fabricCanvas.renderAll.bind(fabricCanvas), {
-            // alignment handled by img properties above
-            // extra options could go here
-          });
-
-          resolve();
-        }, { crossOrigin: "anonymous" });
-      });
-    }
-
-    // Optionally: update any "template" object(s) that represent the card background.
-    // If your template uses a rectangle or object with a data key like { layer: "card-bg" },
-    // find it and change its fill instead of canvas background (so the template layout keeps border radius, etc).
     try {
-      const bgObjects = fabricCanvas.getObjects().filter(o => o?.data?.layer === "card-bg" || o?.data?.role === "background");
-      if (bgObjects.length) {
-        bgObjects.forEach((obj) => {
-          if (dataPayload.mode === "image" && dataPayload.imageUrl) {
-            // if you prefer to set image into a rect use pattern fill technique:
-            fabric.Image.fromURL(dataPayload.imageUrl, (img) => {
-              const patternSourceCanvas = new fabric.StaticCanvas(null, { enableRetinaScaling: false });
-              // scale pattern to object bounds:
-              const w = obj.width * obj.scaleX;
-              const h = obj.height * obj.scaleY;
-              img.scaleToWidth(w);
-              img.set({ originX: "left", originY: "top" });
-              patternSourceCanvas.setWidth(w);
-              patternSourceCanvas.setHeight(h);
-              patternSourceCanvas.add(img);
-              obj.set("fill", new fabric.Pattern({ source: patternSourceCanvas.getElement(), repeat: "no-repeat" }));
-              obj.setCoords();
-              fabricCanvas.requestRenderAll();
-            }, { crossOrigin: "anonymous" });
-          } else if (dataPayload.mode === "color") {
-            obj.set("fill", dataPayload.color || "");
-            obj.setCoords();
-            fabricCanvas.requestRenderAll();
-          } else if (dataPayload.mode === "transparent") {
-            obj.set("fill", null);
-            obj.setCoords();
-            fabricCanvas.requestRenderAll();
-          }
-        });
+      // Update wrapper DOM background (outside card area)
+      if (wrapperRef.current) {
+        if (dataPayload.mode === "color") wrapperRef.current.style.background = dataPayload.color || "transparent";
+        else if (dataPayload.mode === "transparent") wrapperRef.current.style.background = "transparent";
+        else wrapperRef.current.style.background = "";
       }
-    } catch  {
-  // intentionally ignored
+
+      // If engine exposes a helper, use it (keeps behaviour consistent)
+      if (typeof setCanvasBackground === "function") {
+        await setCanvasBackground(dataPayload);
+        if (dataPayload.mode === "color" && dataPayload.color) {
+          setRecentBgColors((prev) => {
+            const next = [dataPayload.color, ...prev.filter((c) => c !== dataPayload.color)];
+            return next.slice(0, 8);
+          });
+          setBackgroundColor(dataPayload.color);
+        } else if (dataPayload.mode === "transparent") {
+          setBackgroundColor("");
+        }
+        return;
+      }
+
+      // Otherwise operate directly on the canvas bg rect
+      const bgObj = c.getObjects().find(o => o?.data?.role === "background");
+      if (!bgObj) {
+        // fallback: create background rect
+        const cornerRadiusPx =
+          CARD.cornerRadiusPx ?? (CARD.cornerRadiusMM ? Math.round((CARD.cornerRadiusMM / 25.4) * CARD.dpi) : 0);
+        const newBg = new fabric.Rect({
+          left: 0,
+          top: 0,
+          width: c.getWidth(),
+          height: c.getHeight(),
+          rx: cornerRadiusPx,
+          ry: cornerRadiusPx,
+          fill: dataPayload.mode === "color" ? dataPayload.color || "transparent" : null,
+          selectable: false,
+          evented: false,
+        });
+        newBg.set("data", { layer: "card-bg", role: "background" });
+        c.add(newBg);
+        c.sendToBack(newBg);
+        c.requestRenderAll();
+        if (dataPayload.mode === "color" && dataPayload.color) {
+          setRecentBgColors((prev) => [dataPayload.color, ...prev.filter(c => c !== dataPayload.color)].slice(0,8));
+          setBackgroundColor(dataPayload.color);
+        }
+        return;
+      }
+
+      // We have a bgObj — update it depending on payload
+      if (dataPayload.mode === "transparent") {
+        bgObj.set("fill", null);
+        bgObj.set("clipPath", null);
+        bgObj.set("opacity", 1);
+        bgObj.setCoords();
+        c.sendToBack(bgObj);
+        c.requestRenderAll();
+        setBackgroundColor("");
+        return;
+      }
+
+      // if (dataPayload.mode === "color") {
+      //   bgObj.set("fill", dataPayload.color || null);
+      //   bgObj.set("clipPath", null);
+      //   bgObj.set("opacity", 1);
+      //   bgObj.setCoords();
+      //   c.sendToBack(bgObj);
+      //   c.requestRenderAll();
+      //   setRecentBgColors((prev) => {
+      //     const next = [dataPayload.color, ...prev.filter((c) => c !== dataPayload.color)];
+      //     return next.slice(0, 8);
+      //   });
+      //   setBackgroundColor(dataPayload.color || "");
+      //   return;
+      // }
+
+      if (dataPayload.mode === "color") {
+  bgObj.set("fill", dataPayload.color || null);
+  bgObj.set("clipPath", null);
+  bgObj.set("opacity", 1);
+
+  // force immediate redraw
+  bgObj.setCoords();
+  c.sendToBack(bgObj);
+  c.renderOnAddRemove = true;
+  c.requestRenderAll();
+
+  setRecentBgColors((prev) => {
+    const next = [dataPayload.color, ...prev.filter((c) => c !== dataPayload.color)];
+    return next.slice(0, 8);
+  });
+
+  setBackgroundColor(dataPayload.color || "");
+  return;
 }
 
 
-    // remember recents (color only)
-    if (dataPayload.mode === "color" && dataPayload.color) {
-      setRecentBgColors((prev) => {
-        const next = [dataPayload.color, ...prev.filter((c) => c !== dataPayload.color)];
-        return next.slice(0, 8);
-      });
-      setBackgroundColor(dataPayload.color);
-    } else if (dataPayload.mode === "transparent") {
-      setBackgroundColor("");
-    }
+      if (dataPayload.mode === "image" && dataPayload.imageUrl) {
+        // pattern fill approach: create small canvas source and set as fabric.Pattern
+        await new Promise((resolve, reject) => {
+          fabric.Image.fromURL(dataPayload.imageUrl, (img) => {
+            if (!img) return reject(new Error("image load fail"));
+            const w = bgObj.width * (bgObj.scaleX || 1) || c.getWidth();
+            const h = bgObj.height * (bgObj.scaleY || 1) || c.getHeight();
+            const scaleX = w / img.width;
+            const scaleY = h / img.height;
+            const finalScale = (dataPayload.fit === "cover" ? Math.max(scaleX, scaleY) : Math.min(scaleX, scaleY)) * (typeof dataPayload.scale === "number" ? dataPayload.scale : 1);
 
-    // update wrapper background so the preview area outside the canvas also matches
-    if (wrapperRef.current) {
-      if (dataPayload.mode === "color") wrapperRef.current.style.background = dataPayload.color || "transparent";
-      else if (dataPayload.mode === "transparent") wrapperRef.current.style.background = "transparent";
-      else wrapperRef.current.style.background = ""; // or a subtle pattern if you want
+            const src = document.createElement("canvas");
+            src.width = Math.round(img.width * finalScale);
+            src.height = Math.round(img.height * finalScale);
+            const ctx = src.getContext("2d");
+            const imgEl = img.getElement ? img.getElement() : img._element || null;
+            if (imgEl) ctx.drawImage(imgEl, 0, 0, src.width, src.height);
+            const pattern = new fabric.Pattern({ source: src, repeat: "no-repeat" });
+            bgObj.set("fill", pattern);
+            bgObj.setCoords();
+            c.sendToBack(bgObj);
+            c.requestRenderAll();
+            resolve();
+          }, { crossOrigin: "anonymous" });
+        });
+      }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("applyBackgroundToCanvas failed:", err);
     }
-  } catch (err) {
-    console.error("applyBackgroundToCanvas failed:", err);
-  }
-}, [fabricCanvas, wrapperRef]);
-
+  }, [fabricRef, wrapperRef, setCanvasBackground, CARD]);
 
   // LEFT tools constant
   const LEFT_TOOLS = [
@@ -363,6 +443,18 @@ const applyBackgroundToCanvas = React.useCallback(async (payload) => {
     selectedObject && ["text", "i-text", "textbox"].includes(selectedObject.type);
 
   const selectedImage = selectedCanvasObject && selectedCanvasObject.type === "image" ? selectedCanvasObject : null;
+
+  // keep wrapper background aligned if palette changes (safe)
+  React.useEffect(() => {
+    const c = fabricRef?.current;
+    const bg = c?.getObjects().find(o => o?.data?.role === "background");
+    if (bg && wrapperRef.current) {
+      const fill = bg.fill;
+      // if fill is a color string
+      if (typeof fill === "string") wrapperRef.current.style.background = fill || "";
+      else wrapperRef.current.style.background = "";
+    }
+  }, [fabricRef, /* you can add palette to deps if you pass it */]);
 
   return (
     <div className="relative">
@@ -413,6 +505,13 @@ const applyBackgroundToCanvas = React.useCallback(async (payload) => {
               onDeleteUpload={handleDeleteUpload}
             />
           )}
+          {activeTool === "qrcode" && (
+  <QrPanel
+    initialData={{}}
+    onApply={(payload) => applyQrToCanvas(payload)}
+    // optional: pass recent qrs or presets if you want
+  />
+)}
 
           {activeTool === "background" && (
             <BackgroundPanel
@@ -524,8 +623,10 @@ const applyBackgroundToCanvas = React.useCallback(async (payload) => {
             onChange={(e) => {
               const val = e.target.value;
               setActiveEdit((prev) => (prev ? { ...prev, value: val } : prev));
-              const c = fabricCanvas;
+              const c = fabricRef?.current || fabricCanvas;
               if (!c) return;
+              c.renderOnAddRemove = true;
+
               const obj = c.getObjects().find((o) => o.data?.elId === activeEdit.elId);
               if (obj && (obj.type === "text" || obj.type === "i-text")) {
                 obj.set("text", val);

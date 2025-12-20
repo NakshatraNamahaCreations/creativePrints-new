@@ -1,0 +1,211 @@
+/* MAIN PANEL WRAPPER */
+._addQRCodeInput_1vgzb_5 {
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 18px;
+  box-shadow: 0 6px 18px rgba(16, 24, 40, 0.08);
+  box-sizing: border-box;
+  min-height: 420px;
+  font-family: Inter, Arial, sans-serif;
+}
+
+/* TITLE */
+._panelTitle_eiwej_1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0;
+  color: #111827;
+}
+
+/* DESCRIPTION */
+._addQRCodeInput_1vgzb_5 p {
+  margin: 10px 0 16px 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+/* FORM */
+.swan-form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* INPUT GROUP */
+.swan-input-group {
+  width: 100%;
+}
+
+/* FLOATING LABEL WRAPPER */
+.swan-input-with-floating-label {
+  position: relative;
+  width: 100%;
+}
+
+/* INPUT FIELD */
+._inputPositionStyle_1wiif_26,
+.swan-input {
+  width: 100%;
+  border: 1px solid #c7d2da;
+  padding: 12px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  background: #ffffff;
+  color: #111827;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  box-sizing: border-box;
+}
+
+/* LABEL */
+.swan-input-with-floating-label label {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 13px;
+  color: #9aa4ad;
+  background: transparent;
+  pointer-events: none;
+  transition: 0.15s ease;
+}
+
+/* ON FOCUS OR WHEN HAS VALUE */
+._inputPositionStyle_1wiif_26:focus + label,
+._inputPositionStyle_1wiif_26:not(:placeholder-shown) + label,
+.swan-input:focus + label,
+.swan-input:not(:placeholder-shown) + label {
+  top: 5px;
+  font-size: 12px;
+  transform: none;
+  color: #2b8fd6;
+}
+
+/* INPUT FOCUS STYLE */
+._inputPositionStyle_1wiif_26:focus,
+.swan-input:focus {
+  border-color: #2b8fd6;
+  box-shadow: 0 6px 20px rgba(43, 143, 214, 0.15);
+}
+
+/* PREVIEW TILE WRAPPER */
+._previewContainerStyle_1wiif_5 {
+  margin-bottom: 10px;
+}
+
+/* PREVIEW TILE BOX */
+.swan-standard-tile {
+  display: flex;
+  gap: 12px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #e6e6e6;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(16, 24, 40, 0.04);
+}
+
+/* IMAGE SECTION */
+.swan-standard-tile-image {
+  width: 92px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f3f4f6;
+  flex-shrink: 0;
+}
+
+/* RESPONSIVE IMAGE */
+.swan-responsive-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* TILE TEXT SECTION */
+.swan-standard-tile-contents {
+  flex: 1;
+  min-width: 0;
+}
+
+/* TITLE */
+._textStyle_1wiif_18 .swan-text-xsmall,
+.swan-standard-tile-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* DESCRIPTION */
+.swan-standard-tile-description {
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.25;
+  max-height: 38px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* MINI TEXT */
+.text-xs {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* SIZE INPUT */
+._addQRCodeInput_1vgzb_5 input[type="number"] {
+  border: 1px solid #c7d2da;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  width: 120px;
+}
+
+/* ADD QR BUTTON */
+.swan-button.swan-button-skin-primary.swan-button-full-width {
+  width: 100%;
+  background: #6ed0f0;
+  color: #01283a;
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.06);
+  transition: 0.15s ease;
+}
+
+/* BUTTON HOVER */
+.swan-button.swan-button-skin-primary.swan-button-full-width:hover {
+  box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+  transform: translateY(-1px);
+}
+
+/* DISABLED BUTTON */
+.swan-button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ERROR MESSAGE */
+._addQRCodeInput_1vgzb_5 .error {
+  color: #b00020;
+  font-size: 13px;
+  margin-top: 8px;
+}
+
+/* RESPONSIVE */
+@media (max-width: 980px) {
+  ._addQRCodeInput_1vgzb_5 {
+    min-height: 520px;
+  }
+
+  .swan-standard-tile-image {
+    width: 80px;
+    height: 50px;
+  }
+}
